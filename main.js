@@ -17,7 +17,7 @@ function createWindow () {
     width: 800,
     height: 600,
     useContentSize:true,
-    resizable:false,
+    resizable:true,
     // alwaysOnTop:true,
     webPreferences: {
       backgroundThrottling:false,
