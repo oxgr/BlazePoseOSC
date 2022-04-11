@@ -1,4 +1,4 @@
-# PoseOSC
+# BlazePoseOSC
 Send realtime human pose estimation data to your apps! An adapted version of Lingdong Huang's PoseOSC using Mediapipe's more accurate + performant BlazePose model and GPU backend.
 
 - ~~[PoseNet]~~(https://github.com/tensorflow/tfjs-models/tree/master/posenet) [BlazePose](https://google.github.io/mediapipe/solutions/pose.html) + [Open Sound Control](http://opensoundcontrol.org/spec-1_0) (via [osc-js](https://www.npmjs.com/package/osc-js))
