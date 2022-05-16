@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.1/p5.js"></script>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/16/Stats.min.js"></script>
+  
+
+  <style>
+
+    body {
+      margin: 0;
+    }
+
+  </style>
+
+</head>
+
+<body>
+  <div class="container">
+    <div id="canvas"></div>
+    <video class="input_video"></video>
+    <!-- <canvas class="output_canvas" width="1280px" height="720px"></canvas> -->
+  </div>
+
+  <script >
+
+    let stats = new Stats();
+    // stats.showPanel( 1 ); // 0: fps, 1: ms, 2: mb, 3+: custom
+    document.body.appendChild( stats.dom );
+
+    const videoElement = document.getElementsByClassName('input_video')[0];
+    // const canvasElement = document.getElementsByClassName('output_canvas')[0];
+    // const canvasCtx = canvasElement.getContext('2d');
+
+    let count = 0;
+
+    let prev, target;
+
+    function setup() {
+        let cnv = createCanvas( windowWidth, windowHeight );
+        cnv.parent( 'canvas' );
+        background( 'pink' );
+        noLoop();
+        
+        // noStroke();
+        strokeWeight( 3 );
+        fill( 'red' );
+
+        prev = [];
+        psiz = [];
+        for( let i = 0; i < 2; i++ ) {
+            prev[i] = [];
+            psiz[i] = [];
+            for( let j = 0; j < 21; j++ ) {
+                prev[i][j] = createVector();
+                psiz[i][j] = 0;
+            }
+        }
+        target = createVector();
+
+        // let capture = createCapture();
+        // capture.hide();
+        // console.log( { capture: capture });
+
+
+        const hands = new Hands({locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+        hands.setOptions({
+        maxNumHands: 2,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+        });
+        hands.onResults(onResults);
+        
+        const camera = new Camera(videoElement, {
+        onFrame: async () => {
+            await hands.send({image: videoElement});
+        },
+        width: width,
+        height: height
+        });
+        camera.start();
+        console.log( { camera: camera });
+
+
+        noLoop();
+        // window.addEventListener( 'onkeypress', toggleLoop );
+    }
+
+    function draw() {
+      
+    }
+
+    function windowResized() {
+
+      resizeCanvas(windowWidth, windowHeight);
+
+    }
+
+    function mouseClicked() {
+     
+      toggleLoop();
+
+    }
+
+    function toggleLoop() {
+
+      if (isLooping()) noLoop();
+        else loop();
+
+    }
+
+    // function onKeyPressed() {
+    //   console.log( keyCode );
+    //   switch( keyCode ) {
+    //     case 32:
+    //     case 65:
+    //     if (isLooping()) noLoop();
+    //       else loop();
+    //       break;
+    //   }
+    // }
+    
+    function onResults(results) {
+      stats.begin();
+        background( 'pink' );
+        const lerpSpeed = 0.5;
+
+    //   image(
+    //       results.image, 0, 0);
+      if (results.multiHandLandmarks) {
+        for (const landmarks of results.multiHandLandmarks) {
+
+            let p, w;
+
+            const j = results.multiHandLandmarks.indexOf( landmarks );
+
+            for( let i = 0; i < landmarks.length; i ++ ) {
+
+                const newx = map( landmarks[ i ].x, 0, 1, 0, width);
+                const newy = map( landmarks[ i ].y, 0, 1, 0, height);
+                const size = constrain( map( landmarks[ i ].z, -0.1, 0.1, 50, 0), 0, 100 );
+                
+                try {
+
+                  prev[ j ][ i ].lerp( newx, newy, 0, lerpSpeed );
+                  psiz[ j ][ i ] = lerp( psiz[ j ][ i ], size, lerpSpeed );
+
+                  const x = prev[ j ][ i ].x;
+                  const y = prev[ j ][ i ].y;
+                  const s = psiz[ j ][ i ];
+
+                  //// Drawing lines between joints
+
+                //   // Draw line connecting joints, but *not* connecting finger tip to next finger base
+                //   if ( i > 0 && ( ( i - 1 ) % 4 != 0 )) { stroke('cyan'); line( p.x, p.y, x, y ); }
+
+                //   // Drawing joints
+                //   if ( i % 4 == 0 ) { ellipse( x, y, s ); }
+                //   else { stroke( 'red' ); point( x, y ); }
+
+                //   // Set wrist position
+                //   if ( i == 0 ) w = { x: x, y: y };
+
+                //   // Set previous point to this point or wrist if next joint is a base.
+                //   if ( i % 4 == 0 ) { p = {...w}; }
+                //   else { p = { x: x, y: y }; }
+
+                } catch (e) {
+
+                  console.error(e);
+
+                }
+                
+            }
+        }
+
+        count++;
+        if ( count % 120 == 0 ) console.log( results );
+      }
+      stats.end();
+    }
+  
+    </script>
+
+</body>
+</html>
