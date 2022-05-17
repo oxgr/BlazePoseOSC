@@ -117,132 +117,132 @@ function handleError(error) {
   console.error('Error: ', error);
 }
     
-    const canvasElement = document.getElementsByClassName('output_canvas')[0];
-    const canvasCtx = canvasElement.getContext('2d');
+const canvasElement = document.getElementsByClassName('output_canvas')[0];
+const canvasCtx = canvasElement.getContext('2d');
 
-    canvasCtx.canvas.width = window.innerWidth;
-    canvasCtx.canvas.height = 3*window.innerWidth/4;
+canvasCtx.canvas.width = window.innerWidth;
+canvasCtx.canvas.height = 3*window.innerWidth/4;
 
-    const landmarkContainer = document.getElementsByClassName('landmark-grid-container')[0];
-    // const grid = new LandmarkGrid(landmarkContainer);
-
-
-    // function hasGetUserMedia() {
-    //   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-    // }
-    // if (hasGetUserMedia()) {
-    //   // Good to go!
-    //   console.log( 'we have get user media ');
-    //   const stream = await navigator.mediaDevices.getUserMedia({video: true, audio: true})
-    //   console.log( stream );
-
-    //   const devices = await navigator.mediaDevices.enumerateDevices();
-    //   console.log( devices );
-
-    //   const videoInputs = [];
-    //   devices.forEach( (device) => { if (device.kind == "videoinput") videoInputs.push( device ) } );
-    //   console.log( videoInputs );
-
-    //   // for ( let input of videoInputs ) {
-    //   //   if ( input.label == "FaceTime HD Camera (Built-in) (05ac:8510)" )
-    //   //     stream.id = input.id;
-    //   // }
+const landmarkContainer = document.getElementsByClassName('landmark-grid-container')[0];
+// const grid = new LandmarkGrid(landmarkContainer);
 
 
-      
-    // } else {`
-    //   alert("getUserMedia() is not supported by your browser");
-    // }
-    let timer = Date.now();
+// function hasGetUserMedia() {
+//   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+// }
+// if (hasGetUserMedia()) {
+//   // Good to go!
+//   console.log( 'we have get user media ');
+//   const stream = await navigator.mediaDevices.getUserMedia({video: true, audio: true})
+//   console.log( stream );
+
+//   const devices = await navigator.mediaDevices.enumerateDevices();
+//   console.log( devices );
+
+//   const videoInputs = [];
+//   devices.forEach( (device) => { if (device.kind == "videoinput") videoInputs.push( device ) } );
+//   console.log( videoInputs );
+
+//   // for ( let input of videoInputs ) {
+//   //   if ( input.label == "FaceTime HD Camera (Built-in) (05ac:8510)" )
+//   //     stream.id = input.id;
+//   // }
+
+
+  
+// } else {`
+//   alert("getUserMedia() is not supported by your browser");
+// }
+let timer = Date.now();
+
+
+function onResults(results) {
+  
+  stats.begin();
+
+  // if (!results.poseLandmarks) {
+  //   grid.updateLandmarks([]);
+  //   return;
+  // }
+
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+  if ( params.draw.segmentationMask ) {
+    canvasCtx.drawImage(results.segmentationMask, 0, 0,
+      canvasElement.width, canvasElement.height);
+  }
+
+  // Only overwrite existing pixels.
+  canvasCtx.globalCompositeOperation = 'source-in';
+  canvasCtx.fillStyle = '#00FF00';
+  canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+  // Only overwrite missing pixels.
+  canvasCtx.globalCompositeOperation = 'destination-atop';
+  canvasCtx.drawImage(
+      results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+  canvasCtx.globalCompositeOperation = 'source-over';
+  drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
+                  {color: '#00FF00', lineWidth: 4});
+  drawLandmarks(canvasCtx, results.poseLandmarks,
+                {color: '#FF0000', lineWidth: 2});
+  canvasCtx.restore();
+
+
+  // if (osc.status() === OSC.STATUS.IS_OPEN) {
     
-    
-    function onResults(results) {
-      
-      stats.begin();
+  //   osc.send( 'test', JSON.stringify( results.landmarks ) );
+  // }
 
-      // if (!results.poseLandmarks) {
-      //   grid.updateLandmarks([]);
-      //   return;
-      // }
-    
-      canvasCtx.save();
-      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
-      if ( params.draw.segmentationMask ) {
-        canvasCtx.drawImage(results.segmentationMask, 0, 0,
-          canvasElement.width, canvasElement.height);
+  // grid.updateLandmarks(results.poseWorldLandmarks);
+
+  if ( Date.now() - timer > 5000) {
+    timer = Date.now();
+    console.log( results.poseLandmarks );
+  }
+
+  stats.end();
+}
+
+const pose = new Pose({locateFile: (file) => {
+  return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+}});
+pose.setOptions({
+  modelComplexity: 1,
+  smoothLandmarks: true,
+  enableSegmentation: true,
+  smoothSegmentation: true,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5
+});
+pose.onResults(onResults);
+
+  
+
+const camera = new Camera(videoElement, {
+  onFrame: async () => {
+    await pose.send({image: videoElement});
+  },
+  width: 720,
+  height: 480
+});
+camera.start();
+
+function sendPosesADDR(poses){
+    osc.send(new OSC.Message('/videoWidth',camera.videoWidth));
+    osc.send(new OSC.Message('/videoHeight',camera.videoHeight));
+    osc.send(new OSC.Message('/nPoses',poses.length));
+    for (var i = 0; i < poses.length; i++){
+      osc.send(new OSC.Message('/poses/'+i+"/score",poses[i].score))
+      for (var j = 0; j < poses[i].keypoints.length; j++){
+        var kpt = poses[i].keypoints[j];
+        var pth = '/poses/'+i+"/keypoints/"+kpt.part+"/";
+        osc.send(new OSC.Message(pth+"x",kpt.position.x));
+        osc.send(new OSC.Message(pth+"y",kpt.position.y));
+        osc.send(new OSC.Message(pth+"score",kpt.score));
       }
-    
-      // Only overwrite existing pixels.
-      canvasCtx.globalCompositeOperation = 'source-in';
-      canvasCtx.fillStyle = '#00FF00';
-      canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
-    
-      // Only overwrite missing pixels.
-      canvasCtx.globalCompositeOperation = 'destination-atop';
-      canvasCtx.drawImage(
-          results.image, 0, 0, canvasElement.width, canvasElement.height);
-    
-      canvasCtx.globalCompositeOperation = 'source-over';
-      drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
-                     {color: '#00FF00', lineWidth: 4});
-      drawLandmarks(canvasCtx, results.poseLandmarks,
-                    {color: '#FF0000', lineWidth: 2});
-      canvasCtx.restore();
-
-
-      // if (osc.status() === OSC.STATUS.IS_OPEN) {
-        
-      //   osc.send( 'test', JSON.stringify( results.landmarks ) );
-      // }
-
-    
-      // grid.updateLandmarks(results.poseWorldLandmarks);
-
-      if ( Date.now() - timer > 5000) {
-        timer = Date.now();
-        console.log( results.poseLandmarks );
-      }
-
-      stats.end();
     }
-    
-    const pose = new Pose({locateFile: (file) => {
-      return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-    }});
-    pose.setOptions({
-      modelComplexity: 1,
-      smoothLandmarks: true,
-      enableSegmentation: true,
-      smoothSegmentation: true,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
-    pose.onResults(onResults);
-    
-     
-
-    const camera = new Camera(videoElement, {
-      onFrame: async () => {
-        await pose.send({image: videoElement});
-      },
-      width: 720,
-      height: 480
-    });
-    camera.start();
-
-    function sendPosesADDR(poses){
-        osc.send(new OSC.Message('/videoWidth',camera.videoWidth));
-        osc.send(new OSC.Message('/videoHeight',camera.videoHeight));
-        osc.send(new OSC.Message('/nPoses',poses.length));
-        for (var i = 0; i < poses.length; i++){
-          osc.send(new OSC.Message('/poses/'+i+"/score",poses[i].score))
-          for (var j = 0; j < poses[i].keypoints.length; j++){
-            var kpt = poses[i].keypoints[j];
-            var pth = '/poses/'+i+"/keypoints/"+kpt.part+"/";
-            osc.send(new OSC.Message(pth+"x",kpt.position.x));
-            osc.send(new OSC.Message(pth+"y",kpt.position.y));
-            osc.send(new OSC.Message(pth+"score",kpt.score));
-          }
-        }
-      }
+  }

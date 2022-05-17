@@ -1,12 +1,14 @@
 const fs = require('fs');
 const {ipcRenderer} = require('electron');
-const tf = require('@tensorflow/tfjs-node');
-const posenet = require('@tensorflow-models/posenet');
+//const tf = require('@tensorflow/tfjs-node');
+//const posenet = require('@tensorflow-models/posenet');
+const Pose  = require('@mediapipe/pose/pose.js')
 const OSC = require('osc-js');
 
 var osc;
 
 const Stats = require('stats.js');
+const { Camera } = require('@mediapipe/camera_utils');
 var stats = new Stats();
 stats.showPanel( 0 );
 document.body.appendChild( stats.dom );
@@ -27,29 +29,31 @@ openOSC()
 
 
 
-var camera = document.getElementById('camera');
-var inputCanvas = document.createElement("canvas");
-var debugCanvas = document.createElement("canvas");
-var messageDiv = document.createElement("div");
 
-document.body.appendChild(debugCanvas);
+var Input_camera = document.getElementById('camera');
 
-camera.style.position = "absolute";
-camera.style.left = "0px";
-camera.style.top = "0px";
+// var inputCanvas = document.createElement("canvas");
+// var debugCanvas = document.createElement("canvas");
+// var messageDiv = document.createElement("div");
 
-debugCanvas.style.position = "absolute";
-debugCanvas.style.left = "0px";
-debugCanvas.style.top = "0px";
+//document.body.appendChild(debugCanvas);
 
-messageDiv.style.width = "100%";
-messageDiv.style.position = "absolute";
-messageDiv.style.left = "0px";
-messageDiv.style.bottom = "0px";
-messageDiv.style.backgroundColor = "rgba(0,0,0,0.4)";
-messageDiv.style.color = "white";
-messageDiv.style.fontFamily = "monospace"
-document.body.appendChild(messageDiv);
+// camera.style.position = "absolute";
+// camera.style.left = "0px";
+// camera.style.top = "0px";
+
+// debugCanvas.style.position = "absolute";
+// debugCanvas.style.left = "0px";
+// debugCanvas.style.top = "0px";
+
+// messageDiv.style.width = "100%";
+// messageDiv.style.position = "absolute";
+// messageDiv.style.left = "0px";
+// messageDiv.style.bottom = "0px";
+// messageDiv.style.backgroundColor = "rgba(0,0,0,0.4)";
+// messageDiv.style.color = "white";
+// messageDiv.style.fontFamily = "monospace"
+// document.body.appendChild(messageDiv);
 
 
 var audio = document.createElement("audio");
@@ -90,65 +94,65 @@ navigator.mediaDevices.getUserMedia({video:settings.cameraConfig})
     alert('could not connect stream');
 });
 
-function generateGUI(){
-  var div = document.createElement("div");
-  div.style.color="white";
-  div.style.fontFamily="monospace";
-  var d = document.createElement("div");
-  d.innerHTML = "SETTINGS";
-  d.style.backgroundColor = "rgba(0,0,0,0.3)"
-  div.appendChild(d);
+// function generateGUI(){
+//   var div = document.createElement("div");
+//   div.style.color="white";
+//   div.style.fontFamily="monospace";
+//   var d = document.createElement("div");
+//   d.innerHTML = "SETTINGS";
+//   d.style.backgroundColor = "rgba(0,0,0,0.3)"
+//   div.appendChild(d);
 
-  for (var k in settings){
-    var d = document.createElement("div")
-    var lbl = document.createElement("span");
-    lbl.innerHTML = k;
+//   for (var k in settings){
+//     var d = document.createElement("div")
+//     var lbl = document.createElement("span");
+//     lbl.innerHTML = k;
 
-    if (typeof(settings[k]) == 'boolean'){
-      var cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = settings[k];
+//     if (typeof(settings[k]) == 'boolean'){
+//       var cb = document.createElement("input");
+//       cb.type = "checkbox";
+//       cb.checked = settings[k];
       
-      ;(function(){
-        var _k = k;
-        var _cb = cb;
-        _cb.onclick = function(){
-          settings[_k] = _cb.checked;
-        }
-      })();
-      d.appendChild(cb);
-      d.appendChild(lbl);
-    }else if (typeof (settings[k]) == 'string'){
-      var inp = document.createElement("input");
-      inp.value = settings[k];
-      inp.style.backgroundColor = "rgba(0,0,0,0.3)";
-      inp.style.color = "white";
-      inp.style.fontFamily = "monospace";
-      inp.style.border = "1px solid black";
+//       ;(function(){
+//         var _k = k;
+//         var _cb = cb;
+//         _cb.onclick = function(){
+//           settings[_k] = _cb.checked;
+//         }
+//       })();
+//       d.appendChild(cb);
+//       d.appendChild(lbl);
+//     }else if (typeof (settings[k]) == 'string'){
+//       var inp = document.createElement("input");
+//       inp.value = settings[k];
+//       inp.style.backgroundColor = "rgba(0,0,0,0.3)";
+//       inp.style.color = "white";
+//       inp.style.fontFamily = "monospace";
+//       inp.style.border = "1px solid black";
 
-      ;(function(){
-        var _k = k;
-        var _inp = inp;
-        _inp.onkeypress = function(){
-          if (event.key == "Enter"){
-            settings[_k] = _inp.value;
-          }
-        }
-      })();
-      d.appendChild(lbl);
-      d.appendChild(inp);
-    }
-    d.style.borderBottom = "1px solid black";
-    div.appendChild(d);
-  }
-  document.body.appendChild(div);
-  div.style.position = "absolute";
-  div.style.left = "0px";
-  div.style.top = "50px";
-  div.style.backgroundColor = "rgba(0,0,0,0.5)"
-}
+//       ;(function(){
+//         var _k = k;
+//         var _inp = inp;
+//         _inp.onkeypress = function(){
+//           if (event.key == "Enter"){
+//             settings[_k] = _inp.value;
+//           }
+//         }
+//       })();
+//       d.appendChild(lbl);
+//       d.appendChild(inp);
+//     }
+//     d.style.borderBottom = "1px solid black";
+//     div.appendChild(d);
+//   }
+//   document.body.appendChild(div);
+//   div.style.position = "absolute";
+//   div.style.left = "0px";
+//   div.style.top = "50px";
+//   div.style.backgroundColor = "rgba(0,0,0,0.5)"
+// }
 
-generateGUI();
+// generateGUI();
 
 function drawPose(pose,color="white"){
   var ctx = debugCanvas.getContext('2d');
@@ -236,12 +240,18 @@ function sendPosesJSON(poses){
 
 
 async function estimateFrame() {
+
+
   stats.begin();
+  
+  //open OSC communication
   if (osc.options.plugin.options.send.host != settings.host
     ||osc.options.plugin.options.send.port != settings.port){
     openOSC();
   }
 
+
+  // audio hack thiong to keep the broswer working while not rendering the ctx.
   if (settings.audioHack && audio.paused){
     audio.play();
   }
@@ -249,9 +259,12 @@ async function estimateFrame() {
     audio.pause();
   }
 
+
+  // setup conetxts for display and debugs
   var ictx = inputCanvas.getContext('2d');
   var dctx = debugCanvas.getContext('2d');
   
+  // test image in case tyou want to use test image 
   var testImageXPos = undefined;
   if (settings.useTestImage){
     if (!testImage){
@@ -264,8 +277,10 @@ async function estimateFrame() {
     }
   }else{
     ictx.drawImage(camera,0,0);
-
   }
+
+
+
   var poses = [];
   if (settings.multiplePoses){
     poses = await net.estimateMultiplePoses(inputCanvas, {
@@ -306,27 +321,119 @@ async function estimateFrame() {
   frameCount++;
 }
 
-messageDiv.innerHTML = "Initializing app..."
-camera.onloadeddata = function(){
-  messageDiv.innerHTML = "Camera loaded. Loading PoseNet..."
+//messageDiv.innerHTML = "Initializing app..."
+
+
+const canvasElement = document.getElementsByClassName('output_canvas')[0];
+const canvasCtx = canvasElement.getContext('2d');
+
+canvasCtx.canvas.width = window.innerWidth;
+canvasCtx.canvas.height = 3*window.innerWidth/4;
+
+
+Input_camera.onloadeddata = function(){
+  //messageDiv.innerHTML = "Camera loaded. Loading PoseNet..."
   var [w,h] = [camera.videoWidth, camera.videoHeight];
 
   console.log("camera dimensions",w,h);
 
-  inputCanvas.width = w;
-  inputCanvas.height = h;
+  // inputCanvas.width = w;
+  // inputCanvas.height = h;
 
-  debugCanvas.width = w;
-  debugCanvas.height = h;
+  // debugCanvas.width = w;
+  // debugCanvas.height = h;
 
   ipcRenderer.send('resize', w, h);
 
-  posenet.load(settings.poseNetConfig).then(function(_net){
-    messageDiv.innerHTML = "All loaded."
-    net = _net;
-    setInterval(estimateFrame,5);
-  });
+
+  // //we do pose estimation here on each frame
+  // posenet.load(settings.poseNetConfig).then(function(_net){
+  //   messageDiv.innerHTML = "All loaded."
+  //   net = _net;
+  //   setInterval(estimateFrame,5);
+  // });
 }
+
+let timer = Date.now();
+
+
+const pose = new Pose.Pose({locateFile: (file) => {
+  return `./node_modules/@mediapipe/pose/${file}`;
+}});
+
+console.log(pose)
+
+pose.setOptions({
+  modelComplexity: 1,
+  smoothLandmarks: true,
+  enableSegmentation: true,
+  smoothSegmentation: true,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5
+});
+pose.onResults(onResults);
+
+function onResults(results) {
+  
+  console.log(results.length)
+
+  stats.begin();
+
+  // if (!results.poseLandmarks) {
+  //   grid.updateLandmarks([]);
+  //   return;
+  // }
+
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+  if ( params.draw.segmentationMask ) {
+    canvasCtx.drawImage(results.segmentationMask, 0, 0,
+      canvasElement.width, canvasElement.height);
+  }
+
+  // Only overwrite existing pixels.
+  canvasCtx.globalCompositeOperation = 'source-in';
+  canvasCtx.fillStyle = '#00FF00';
+  canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+  // Only overwrite missing pixels.
+  canvasCtx.globalCompositeOperation = 'destination-atop';
+  canvasCtx.drawImage(
+      results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+  canvasCtx.globalCompositeOperation = 'source-over';
+  drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
+                  {color: '#00FF00', lineWidth: 4});
+  drawLandmarks(canvasCtx, results.poseLandmarks,
+                {color: '#FF0000', lineWidth: 2});
+  canvasCtx.restore();
+
+
+  // if (osc.status() === OSC.STATUS.IS_OPEN) {
+    
+  //   osc.send( 'test', JSON.stringify( results.landmarks ) );
+  // }
+
+
+  // grid.updateLandmarks(results.poseWorldLandmarks);
+
+  if ( Date.now() - timer > 5000) {
+    timer = Date.now();
+    console.log( results.poseLandmarks );
+  }
+
+  stats.end();
+}
+
+const camera = new Camera(Input_camera, {
+  onFrame: async () => {
+    await pose.send({image: Input_camera});
+  },
+  width: 720,
+  height: 480
+});
+camera.start();
 
 document.body.addEventListener("keypress", function(){
   if (event.key == 'x'){

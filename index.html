@@ -5,7 +5,19 @@
     <title>PoseOSC</title>
   </head>
   <body>
-    <video id="camera" autoplay> </video>
+    
+
+    <div class="container">
+      <div>
+          <!-- <video class="input_video" hidden="hidden" ></video> -->
+          <video id="camera" autoplay> </video>
+      </div>
+      <div>
+        <canvas class="output_canvas"></canvas>
+      </div>
+      <div class="landmark-grid-container"></div>
+    </div>
+
     <script src="./app.js"></script>
   </body>
 </html>
