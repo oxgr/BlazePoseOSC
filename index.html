@@ -3,19 +3,34 @@
   <head>
     <meta charset="UTF-8">
     <title>PoseOSC</title>
+    <style>
+
+      body {
+        padding: 0;
+        margin: 0;
+      }
+
+      canvas {
+        padding : 0;
+        margin : 0;
+      }
+
+      .container {
+        padding : 0;
+        margin : 0;
+      }
+        
+      
+
+    </style>
   </head>
   <body>
     
 
     <div class="container">
-      <div>
-          <!-- <video class="input_video" hidden="hidden" ></video> -->
-          <video id="camera" autoplay> </video>
-      </div>
-      <div>
-        <canvas class="output_canvas"></canvas>
-      </div>
-      <div class="landmark-grid-container"></div>
+      <!-- <video class="input_video" hidden="hidden" ></video> -->
+      <video id="camera" autoplay hidden="hidden" > </video>
+      <canvas class="output_canvas"></canvas>
     </div>
 
     <script src="./app.js"></script>

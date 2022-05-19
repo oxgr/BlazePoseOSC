@@ -3,6 +3,7 @@ const {app, BrowserWindow} = require('electron')
 const path = require('path')
 const {ipcMain} = require('electron');
 const { powerSaveBlocker } = require('electron')
+const globalShortcut = app.globalShortcut
 
 powerSaveBlocker.start('prevent-app-suspension');
 powerSaveBlocker.start('prevent-display-sleep')
@@ -32,6 +33,16 @@ function createWindow () {
 
   // Open the DevTools.
   // mainWindow.webContents.openDevTools()
+
+	//util functions for realodaing the page//
+	// globalShortcut.register('f5', function() {
+	// 	console.log('f5 is pressed')
+	// 	mainWindow.reload()
+	// })
+	// globalShortcut.register('CommandOrControl+R', function() {
+	// 	console.log('CommandOrControl+R is pressed')
+	// 	mainWindow.reload()
+	// })
 
   // Emitted when the window is closed.
   mainWindow.on('closed', function () {
