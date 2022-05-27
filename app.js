@@ -27,6 +27,15 @@ let params = {
   }
 }
 
+
+var keypointNames = ['nose','left_eye_inner','left_eye','left_eye_outer',
+                    'right_eye_inner','right_eye','right_eye_outer','left_ear',
+                    'right_ear','mouth_left','mouth-right','left_shoulder','right_shoulder',
+                    'left_elbow', 'right_elbow', 'left_wrist','right_wrist','left_pinky','right_pinky',
+                    'left_index', 'right_index', 'left_thumb','right_thumb','left_hip', 'right_hip', 'left_knee',
+                    'right_knee', 'left_ankle', 'right_ankle', 'left_heel', 'right_heel','left_foot_index','right_foot_index'
+]
+
 // GUI setup 
 let gui = new dat.GUI();
 let folderDraw = gui.addFolder( 'Draw' );
@@ -104,19 +113,19 @@ navigator.mediaDevices.getUserMedia({video:settings.cameraConfig})
 
 
 function sendPosesADDR(poses){
-  osc.send(new OSC.Message('/videoWidth',camera.videoWidth));
-  osc.send(new OSC.Message('/videoHeight',camera.videoHeight));
-  osc.send(new OSC.Message('/nPoses',poses.length));
-  for (var i = 0; i < poses.length; i++){
-    osc.send(new OSC.Message('/poses/'+i+"/score",poses[i].score))
-    for (var j = 0; j < poses[i].keypoints.length; j++){
-      var kpt = poses[i].keypoints[j];
-      var pth = '/poses/'+i+"/keypoints/"+kpt.part+"/";
-      osc.send(new OSC.Message(pth+"x",kpt.position.x));
-      osc.send(new OSC.Message(pth+"y",kpt.position.y));
-      osc.send(new OSC.Message(pth+"score",kpt.score));
-    }
+  osc.send(new OSC.Message('/videoWidth',poses.image.width));
+  osc.send(new OSC.Message('/videoHeight',poses.image.height));
+  //osc.send(new OSC.Message('/nPoses',poses.poseLandmarks.length));
+  for (var i = 0; i < poses.poseLandmarks.length; i++){
+    var kpt = poses.poseLandmarks[i];
+    var pth = '/pose/keypoints/' + keypointNames[i] + "/";
+    
+    osc.send(new OSC.Message(pth+"x",kpt.x));
+    osc.send(new OSC.Message(pth+"y",kpt.y));
+    osc.send(new OSC.Message(pth+"z",kpt.z));
+    osc.send(new OSC.Message(pth+"visibility",kpt.visibility));
   }
+  
 }
 
 function sendPosesARR(poses){
@@ -207,10 +216,11 @@ camera.start();
 
 function onResults(results) {
   
-
   if(results.poseLandmarks == null){
     return
   }
+
+  //console.log(results);
 
   stats.begin();
 
@@ -244,6 +254,8 @@ function onResults(results) {
 
     if(params.OSC.send_format == 'sendPosesJSON'){
       sendPosesJSON(results.poseLandmarks);
+    }else if(params.OSC.send_format == 'sendPosesADDR'){
+      sendPosesADDR(results)
     }
 
   }
