@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils_3d/control_utils_3d.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/16/Stats.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dat.gui@0.7.9/build/dat.gui.min.js" crossorigin="anonymous"></script>
+  
+
+    <style>
+
+    body {
+        margin: 0;
+        height: 100%;
+        font-family: 'Courier New', Courier, monospace;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .container > div {
+      flex: 1;
+    }
+
+    .output_canvas {
+
+      width: 600px;
+      height: 450px;
+
+    }
+
+    .textDiv {
+      margin: 20px;
+    }
+
+    .log_output {
+      width: 500px;
+      height: 200px;
+      overflow: scroll;
+      padding: 5px;
+      border: 5px solid grey;
+    }
+
+    .logStatus {
+      color: green;
+    }
+
+</style>
+
+</head>
+
+<body>
+  <div class="container">
+    <div>
+        <video class="input_video" hidden="hidden" ></video>
+    </div>
+    <div id="canvasDiv">
+      <canvas class="output_canvas"></canvas>
+    </div>
+    <div class="textDiv">
+
+      <div class="select">
+        <label for="audioSource">Audio source: </label><select id="audioSource"></select>
+      </div>
+    
+      <div class="select">
+        <label for="videoSource">Video source: </label><select id="videoSource"></select>
+      </div>
+      <!-- <div id="logDiv"> -->
+        <p>Status: <strong><span class="logStatus">Standby</span></strong></p>
+        <p>Frames: <strong><span class="logCount">0</span></strong></p>
+        <br>
+
+        <h2>Instructions</h2>
+        <p>Settings in top-right.</p>
+        <p><b>Enter:</b> Start and stop recording.</p>
+        <p><b>C:</b> Clear console.</p>
+        <p>Find the legend for landmarks <a href="https://google.github.io/mediapipe/images/mobile/pose_tracking_full_body_landmarks.png">here</a>.</p>
+        
+        <h2>Console</h2>
+        <button class="copyButton">Copy to clipboard</button>
+        <pre class="log_output"></pre>
+      <!-- </div> -->
+      <div class="landmark-grid-container"></div>
+    </div>
+  </div>
+    
+
+  
+
+  <!-- <video class="test_video" autoplay muted playsinline></video> -->
+
+  <div class="info"></div>
+
+
+  <script type="module">
+
+    // const fs = require( 'fs' );
+// const OSC = require('osc-js');
+
+// let settings = JSON.parse(fs.readFileSync(__dirname +"/settings.json", "utf8"));
+
+// function openOSC(){
+//   osc = new OSC({ plugin: new OSC.DatagramPlugin({
+//     send:{
+//       host: settings.host,
+//       port: settings.port,
+//     }
+//   }) });
+//   osc.open();
+// }
+
+// openOSC()
+
+let stats = new Stats();
+document.body.appendChild( stats.dom );
+
+
+let params = {
+  draw: {
+    segmentationMask: false
+  },
+  source: {
+    video: 'facetime',
+    audio: 'default'
+  },
+  log: {
+    enable: false,
+    logsPerSecond: 1,
+  }
+}
+
+let gui = new dat.GUI();
+
+let folderDraw = gui.addFolder( 'Draw' );
+folderDraw.add( params.draw, 'segmentationMask' )
+
+// let folderSrc = gui.addFolder( 'Source' );
+// folderSrc.add( params.source, 'video', {facetime: 'facetime', defaults: 'default'} );
+// folderSrc.add( params.source, 'audio' );
+
+let folderLog = gui.addFolder( 'Log' );
+folderLog.add( params.log, 'enable' ).listen();
+folderLog.add( params.log, 'logsPerSecond', 1, 60 ).step( 1 );
+
+const logOutputElement = document.getElementsByClassName('log_output')[0];
+const logStatusElement = document.getElementsByClassName('logStatus')[0];
+const logCountElement = document.getElementsByClassName('logCount')[0];
+
+let logFrameCount = 0;
+
+document.addEventListener( 'keypress', onKeyPress );
+
+function onKeyPress( e ) {
+
+  console.log( e );
+
+  switch ( e.key ) {
+
+    case 'Enter':
+      params.log.enable = !params.log.enable;
+
+      const logStatus = params.log.enable ? 'Recording' : 'Standby';
+      const logColor = params.log.enable ? 'red' : 'green';
+      logStatusElement.innerHTML = logStatus;
+      logStatusElement.style.color = logColor;
+
+      break;
+
+    case 'c':
+      logOutputElement.innerHTML = '';
+      logFrameCount = 0;
+      logCountElement.innerHTML = `${logFrameCount}`;
+      break;
+
+  }
+
+}
+
+const copyButtonElement = document.getElementsByClassName('copyButton')[0];
+copyButtonElement.onclick = copyDivToClipboard;
+
+function copyDivToClipboard() {
+  console.log('selecting...')
+  var range = document.createRange();
+  range.selectNode(logOutputElement);
+  window.getSelection().removeAllRanges(); // clear current selection
+  window.getSelection().addRange(range); // to select text
+  document.execCommand("copy");
+  // window.getSelection().removeAllRanges();// to deselect
+}
+
+
+// import './node_modules/osc-js/lib/osc.min.js';
+
+//     function openOSC(){
+//   osc = new OSC({ plugin: new OSC.DatagramPlugin({
+//     send:{
+//       host: 'localhost',
+//       port: '4060',
+//     }
+//   }) });
+//   osc.open();
+// }
+
+// openOSC()
+
+    // const message = new OSC.Message('/test/path', 521.25, 'teststring', 665);
+    // osc.send(message);
+    
+// var testVideo = document.getElementsByClassName('test_video')[0];
+const videoElement = document.getElementsByClassName('input_video')[0];
+var audioSelect = document.querySelector('select#audioSource');
+var videoSelect = document.querySelector('select#videoSource');
+
+const infoElement = document.getElementsByClassName('info')[0];
+
+
+
+audioSelect.onchange = getStream;
+videoSelect.onchange = getStream;
+
+getStream().then(getDevices).then(gotDevices);
+
+function getDevices() {
+  // AFAICT in Safari this only gets default devices until gUM is called :/
+  return navigator.mediaDevices.enumerateDevices();
+}
+
+function gotDevices(deviceInfos) {
+  window.deviceInfos = deviceInfos; // make available to console
+  console.log('Available input and output devices:', deviceInfos);
+  for (const deviceInfo of deviceInfos) {
+    const option = document.createElement('option');
+    option.value = deviceInfo.deviceId;
+    if (deviceInfo.kind === 'audioinput') {
+      option.text = deviceInfo.label || `Microphone ${audioSelect.length + 1}`;
+      audioSelect.appendChild(option);
+    } else if (deviceInfo.kind === 'videoinput') {
+      option.text = deviceInfo.label || `Camera ${videoSelect.length + 1}`;
+      videoSelect.appendChild(option);
+    }
+  }
+}
+
+function getStream() {
+  if (window.stream) {
+    window.stream.getTracks().forEach(track => {
+      track.stop();
+    });
+  }
+  const audioSource = audioSelect.value;
+  const videoSource = videoSelect.value;
+  const constraints = {
+    audio: {deviceId: audioSource ? {exact: audioSource} : undefined},
+    video: {deviceId: videoSource ? {exact: videoSource} : undefined}
+  };
+  return navigator.mediaDevices.getUserMedia(constraints).
+    then(gotStream).catch(handleError);
+}
+
+function gotStream(stream) {
+  window.stream = stream; // make stream available to console
+  audioSelect.selectedIndex = [...audioSelect.options].
+    findIndex(option => option.text === stream.getAudioTracks()[0].label);
+  videoSelect.selectedIndex = [...videoSelect.options].
+    findIndex(option => option.text === stream.getVideoTracks()[0].label);
+  videoElement.srcObject = stream;
+}
+
+function handleError(error) {
+  console.error('Error: ', error);
+}
+    
+const canvasElement = document.getElementsByClassName('output_canvas')[0];
+const canvasCtx = canvasElement.getContext('2d');
+
+canvasCtx.canvas.width = window.innerWidth;
+canvasCtx.canvas.height = 3*window.innerWidth/4;
+
+const landmarkContainer = document.getElementsByClassName('landmark-grid-container')[0];
+
+
+
+// const grid = new LandmarkGrid(landmarkContainer);
+
+
+// function hasGetUserMedia() {
+//   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+// }
+// if (hasGetUserMedia()) {
+//   // Good to go!
+//   console.log( 'we have get user media ');
+//   const stream = await navigator.mediaDevices.getUserMedia({video: true, audio: true})
+//   console.log( stream );
+
+//   const devices = await navigator.mediaDevices.enumerateDevices();
+//   console.log( devices );
+
+//   const videoInputs = [];
+//   devices.forEach( (device) => { if (device.kind == "videoinput") videoInputs.push( device ) } );
+//   console.log( videoInputs );
+
+//   // for ( let input of videoInputs ) {
+//   //   if ( input.label == "FaceTime HD Camera (Built-in) (05ac:8510)" )
+//   //     stream.id = input.id;
+//   // }
+
+
+  
+// } else {`
+//   alert("getUserMedia() is not supported by your browser");
+// }
+let timer = Date.now();
+
+
+function onResults(results) {
+  
+  stats.begin();
+
+  // if (!results.poseLandmarks) {
+  //   grid.updateLandmarks([]);
+  //   return;
+  // }
+
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+  if ( params.draw.segmentationMask && results.segmentationMask != null ) {
+    canvasCtx.drawImage(results.segmentationMask, 0, 0,
+      canvasElement.width, canvasElement.height);
+  }
+
+  // Only overwrite existing pixels.
+  canvasCtx.globalCompositeOperation = 'source-in';
+  canvasCtx.fillStyle = '#00FF00';
+  canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+  // Only overwrite missing pixels.
+  canvasCtx.globalCompositeOperation = 'destination-atop';
+  canvasCtx.drawImage(
+      results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+  canvasCtx.globalCompositeOperation = 'source-over';
+  drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
+                  {color: '#00FF00', lineWidth: 4});
+  drawLandmarks(canvasCtx, results.poseLandmarks,
+                {color: '#FF0000', lineWidth: 2});
+  canvasCtx.restore();
+
+
+  // if (osc.status() === OSC.STATUS.IS_OPEN) {
+    
+  //   osc.send( 'test', JSON.stringify( results.landmarks ) );
+  // }
+
+
+  // grid.updateLandmarks(results.poseWorldLandmarks);
+
+  if ( params.log.enable && Date.now() - timer > ( 1000 / params.log.logsPerSecond ) ) {
+    timer = Date.now();
+    // console.log( results.poseLandmarks );
+    const logContent = 
+    logOutputElement.innerHTML +=
+      JSON.stringify( results.poseLandmarks, null, 2 )
+      + ',\n';
+
+    logFrameCount++;
+    logCountElement.innerHTML = `${logFrameCount}`
+  }
+
+  
+
+  stats.end();
+}
+
+const pose = new Pose({locateFile: (file) => {
+  return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+}});
+pose.setOptions({
+  modelComplexity: 1,
+  smoothLandmarks: true,
+  enableSegmentation: true,
+  smoothSegmentation: true,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5
+});
+pose.onResults(onResults);
+
+  
+
+const camera = new Camera(videoElement, {
+  onFrame: async () => {
+    await pose.send({image: videoElement});
+  },
+  width: 720,
+  height: 480
+});
+camera.start();
+
+function sendPosesADDR(poses){
+    osc.send(new OSC.Message('/videoWidth',camera.videoWidth));
+    osc.send(new OSC.Message('/videoHeight',camera.videoHeight));
+    osc.send(new OSC.Message('/nPoses',poses.length));
+    for (var i = 0; i < poses.length; i++){
+      osc.send(new OSC.Message('/poses/'+i+"/score",poses[i].score))
+      for (var j = 0; j < poses[i].keypoints.length; j++){
+        var kpt = poses[i].keypoints[j];
+        var pth = '/poses/'+i+"/keypoints/"+kpt.part+"/";
+        osc.send(new OSC.Message(pth+"x",kpt.position.x));
+        osc.send(new OSC.Message(pth+"y",kpt.position.y));
+        osc.send(new OSC.Message(pth+"score",kpt.score));
+      }
+    }
+  }
+
+
+
+  </script>
+
+
+</body>
+</html>
