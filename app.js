@@ -27,15 +27,6 @@ let params = {
   }
 }
 
-
-var keypointNames = [ 'nose', 'left_eye_inner', 'left_eye', 'left_eye_outer',
-  'right_eye_inner', 'right_eye', 'right_eye_outer', 'left_ear',
-  'right_ear', 'mouth_left', 'mouth-right', 'left_shoulder', 'right_shoulder',
-  'left_elbow', 'right_elbow', 'left_wrist', 'right_wrist', 'left_pinky', 'right_pinky',
-  'left_index', 'right_index', 'left_thumb', 'right_thumb', 'left_hip', 'right_hip', 'left_knee',
-  'right_knee', 'left_ankle', 'right_ankle', 'left_heel', 'right_heel', 'left_foot_index', 'right_foot_index'
-]
-
 // GUI setup 
 let gui = new dat.GUI();
 let folderDraw = gui.addFolder( 'Draw' );
@@ -56,6 +47,25 @@ folderOSC.add( params.OSC, 'enable' )
 folderOSC.add( params.OSC, 'host' )
 folderOSC.add( params.OSC, 'port' )
 
+var keypointNames = [
+  'nose',
+  'left_eye_inner',   'left_eye',   'left_eye_outer',
+  'right_eye_inner',  'right_eye',  'right_eye_outer',
+  'left_ear',         'right_ear',
+  'mouth_left',       'mouth-right',
+  'left_shoulder',    'right_shoulder',
+  'left_elbow',       'right_elbow',
+  'left_wrist',       'right_wrist',
+  'left_pinky',       'right_pinky',
+  'left_index',       'right_index',
+  'left_thumb',       'right_thumb',
+  'left_hip',         'right_hip',
+  'left_knee',        'right_knee',
+  'left_ankle',       'right_ankle',
+  'left_heel',        'right_heel',
+  'left_foot_index',  'right_foot_index'
+]
+
 stats.showPanel( 0 );
 document.body.appendChild( stats.dom );
 
@@ -75,7 +85,7 @@ function openOSC() {
 
 openOSC()
 
-var Input_camera = document.getElementById( 'camera' );
+var cameraElement = document.getElementById( 'camera' );
 
 var audio = document.createElement( "audio" );
 audio.controls = "controls";
@@ -180,9 +190,9 @@ canvasCtx.canvas.height = 3 * window.innerWidth / 4;
 
 var [ w, h ] = [ 0, 0 ];
 
-Input_camera.onloadeddata = function () {
+cameraElement.onloadeddata = function () {
 
-  [ w, h ] = [ Input_camera.videoWidth, Input_camera.videoHeight ];
+  [ w, h ] = [ cameraElement.videoWidth, cameraElement.videoHeight ];
 
   console.log( "camera dimensions", w, h );
 
@@ -209,9 +219,9 @@ pose.setOptions( {
 } );
 pose.onResults( onResults );
 
-const camera = new Camera( Input_camera, {
+const camera = new Camera( cameraElement, {
   onFrame: async () => {
-    await pose.send( { image: Input_camera } );
+    await pose.send( { image: cameraElement } );
   },
   width: w,
   height: h
@@ -221,9 +231,7 @@ camera.start();
 
 function onResults( results ) {
 
-  if ( results.poseLandmarks == null ) {
-    return
-  }
+  if ( results.poseLandmarks == null ) return;
 
   stats.begin();
 
