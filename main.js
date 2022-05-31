@@ -82,7 +82,7 @@ var oldSize;
 
 ipcMain.on( 'resize', function ( e, x, y ) {
   oldSize = [ x, y ];
-  mainWindow.setContentSize( x, y );
+  // mainWindow.setContentSize( x, y );
 } )
 
 ipcMain.on( 'float', function () {

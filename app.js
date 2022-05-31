@@ -7,45 +7,32 @@ const Stats = require( 'stats.js' );
 const { Camera } = require( '@mediapipe/camera_utils' );
 const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' )
 
-var osc;
-var stats = new Stats();
 let timer = Date.now();
 
 let params = {
+  global: {
+    showStats: true,
+  },
   draw: {
     segmentationMask: false
   },
   source: {
-    video: 'facetime',
-    audio: 'default'
+    video: '',
+    audio: '',
+    availableSources: {
+      video: {},
+      audio: {}
+    }
   },
   osc: {
     enable: false,
     send_format: 'sendPosesADDR',
     host: 'localhost',
-    port: '9527'
+    port: '9527',
+    frequency: 60,
   }
 }
 
-// GUI setup 
-let gui = new dat.GUI();
-let folderDraw = gui.addFolder( 'Draw' );
-folderDraw.add( params.draw, 'segmentationMask' )
-
-let folderSrc = gui.addFolder( 'Source' );
-folderSrc.add( params.source, 'video', { facetime: 'facetime', defaults: 'default' } );
-folderSrc.add( params.source, 'audio' );
-
-let folderOsc = gui.addFolder( 'OSC' );
-folderOsc.add( params.osc, 'send_format', {
-  ADDR: 'sendPosesADDR',
-  JSON: 'sendPosesJSON',
-  // ARR:  'sendPosesARR',
-  // XML:  'sendPosesXML'
-} )
-folderOsc.add( params.osc, 'enable' )
-folderOsc.add( params.osc, 'host' )
-folderOsc.add( params.osc, 'port' )
 
 var keypointNames = [
   'nose',
@@ -66,12 +53,19 @@ var keypointNames = [
   'left_foot_index',  'right_foot_index'
 ]
 
+// Stats
+
+let stats = new Stats();
 stats.showPanel( 0 );
 document.body.appendChild( stats.dom );
+
+// Settings
 
 var settings = JSON.parse( fs.readFileSync( __dirname + "/settings.json", "utf8" ) );
 
 // OSC
+
+let osc;
 
 function openOSC() {
   osc = new OSC( {
@@ -94,16 +88,29 @@ document.body.addEventListener( "keypress", function ( event ) {
     
     // L for Log
     case 'l':
-      console.log( params.osc.send_format );
+      console.log( {
+        videoElement: videoElement,
+        drawUtils, drawUtils
+      } );
+      break;
+
+    case 'g':
+      dat.GUI.toggleHide();
+			params.global.showStats = !params.global.showStats;
+			stats.dom.style.display = params.global.showStats ? "block" : "none";
+			// logDOM.style.display = showStats ? "block" : "none";
       break;
     
+    case '2':
+      window.open( './blazepose-recorder.html', target="_self");
+
     case 'x':
       ipcRenderer.send( 'float' );
       break;
   }
 })
 
-var cameraElement = document.getElementById( 'camera' );
+var videoElement = document.getElementById( 'input_video' );
 
 var audio = document.createElement( "audio" );
 audio.controls = "controls";
@@ -119,6 +126,11 @@ audio.style.top = "0px";
 audio.style.display = "none";
 document.body.appendChild( audio );
 
+// GUI
+
+getStream().then( getDevices ).then( generateGUI );
+
+
 // Tests
 
 var net = undefined;
@@ -127,39 +139,39 @@ var testImageUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Re
 var frameCount = 0;
 
 
-navigator.mediaDevices.enumerateDevices().then( function ( mediaDevices ) {
-  mediaDevices.forEach( mediaDevice => {
-    if ( mediaDevice.kind === 'videoinput' ) {
-      console.log( "camera found:", mediaDevice.label );
-      console.log( "deviceId:", mediaDevice.deviceId )
-    }
-  } );
-  console.log( "copy-paste a deviceId to settings.json to specify which camera to use." )
-} )
+// navigator.mediaDevices.enumerateDevices().then( function ( mediaDevices ) {
+//   mediaDevices.forEach( mediaDevice => {
+//     if ( mediaDevice.kind === 'videoinput' ) {
+//       console.log( "camera found:", mediaDevice.label );
+//       console.log( "deviceId:", mediaDevice.deviceId )
+//     }
+//   } );
+//   console.log( "copy-paste a deviceId to settings.json to specify which camera to use." )
+// } )
 
-navigator.mediaDevices.getUserMedia( { video: settings.cameraConfig } )
-  .then( function ( stream ) {
-    camera.srcObject = stream;
-  } ).catch( function () {
-    alert( 'could not connect stream' );
-  } );
-
-
+// navigator.mediaDevices.getUserMedia( { video: settings.cameraConfig } )
+//   .then( function ( stream ) {
+//     camera.srcObject = stream;
+//   } ).catch( function () {
+//     alert( 'could not connect stream' );
+//   } );
 
 
 
-const canvasElement = document.getElementsByClassName( 'output_canvas' )[ 0 ];
+
+
+const canvasElement = document.getElementById( 'output_canvas' );
 const canvasCtx = canvasElement.getContext( '2d' );
 
-canvasCtx.canvas.width = window.innerWidth;
-canvasCtx.canvas.height = 3 * window.innerWidth / 4;
+// canvasCtx.canvas.width = window.innerWidth;
+// canvasCtx.canvas.height = 3 * window.innerWidth / 4;
 
 
 var [ w, h ] = [ 0, 0 ];
 
-cameraElement.onloadeddata = function () {
+videoElement.onloadeddata = function () {
 
-  [ w, h ] = [ cameraElement.videoWidth, cameraElement.videoHeight ];
+  [ w, h ] = [ videoElement.videoWidth, videoElement.videoHeight ];
 
   console.log( "camera dimensions", w, h );
 
@@ -186,9 +198,9 @@ pose.setOptions( {
 } );
 pose.onResults( onResults );
 
-const camera = new Camera( cameraElement, {
+const camera = new Camera( videoElement, {
   onFrame: async () => {
-    await pose.send( { image: cameraElement } );
+    await pose.send( { image: videoElement } );
   },
   width: w,
   height: h
@@ -212,24 +224,29 @@ function onResults( results ) {
 
   // Only overwrite existing pixels.
   canvasCtx.globalCompositeOperation = 'source-in';
-  canvasCtx.fillStyle = '#00FF00';
+  canvasCtx.fillStyle = '#0000ff';
   canvasCtx.fillRect( 0, 0, canvasElement.width, canvasElement.height );
 
-  // Only overwrite missing pixels.
-  canvasCtx.globalCompositeOperation = 'destination-atop';
-  canvasCtx.drawImage(
-    results.image, 0, 0, canvasElement.width, canvasElement.height );
+  // // Only overwrite missing pixels.
+  // canvasCtx.globalCompositeOperation = 'destination-atop';
+  // canvasCtx.drawImage(
+  //   results.image, 0, 0, canvasElement.width, canvasElement.height );
 
   canvasCtx.globalCompositeOperation = 'source-over';
+  drawUtils.drawConnectors( canvasCtx, results.poseLandmarks, Pose.POSE_CONNECTIONS,
+    { color: '#aaff00', lineWidth: 4 } );
   drawUtils.drawLandmarks( canvasCtx, results.poseLandmarks,
-    { color: '#FF0000', lineWidth: 2 } );
-
-  drawUtils.drawConnectors( canvasCtx, results.poseLandmarks, drawUtils.POSE_CONNECTIONS,
-    { color: '#00ff00', lineWidth: 4 } );
+    { color: '#ff0000', lineWidth: 2 } );
   canvasCtx.restore();
 
+
   // Send OSC through the function named as a string in params.
-  if ( params.osc.enable ) window[ params.osc.send_format ]( results );
+  if ( params.osc.enable && ( ( Date.now() - timer ) > ( 1000 / params.osc.frequency ) ) ) {
+    
+    window[ params.osc.send_format ]( results );
+    timer = Date.now();
+
+  }
 
 
 
@@ -245,7 +262,72 @@ function onResults( results ) {
   stats.end();
 }
 
+function generateGUI() {
 
+  let gui = new dat.GUI();
+
+  // let folderSrc = gui.addFolder( 'Source' );
+  gui.add( params.source, 'video', params.source.availableSources.video ).name( 'Input Source' ).onChange( getStream );
+  // folderSrc.add( params.source, 'audio' );
+
+  let folderDraw = gui.addFolder( 'Draw' );
+  folderDraw.add( params.draw, 'segmentationMask' )
+
+  let folderOsc = gui.addFolder( 'OSC' );
+  folderOsc.add( params.osc, 'enable' )
+  folderOsc.add( params.osc, 'send_format', {
+    ADDR: 'sendPosesADDR',
+    JSON: 'sendPosesJSON',
+    // ARR:  'sendPosesARR',
+    // XML:  'sendPosesXML'
+  } )
+  folderOsc.add( params.osc, 'host' )
+  folderOsc.add( params.osc, 'port' )
+  folderOsc.add( params.osc, 'frequency', 1, 60 ).step( 1 );
+
+}
+
+async function getStream() {
+  if (window.stream) {
+    window.stream.getTracks().forEach(track => {
+      track.stop();
+    });
+  }
+
+  const videoSource = params.source.video;
+  const constraints = {
+    video: {deviceId: videoSource ? {exact: videoSource} : undefined}
+  };
+
+  try {
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    window.stream = stream; // make stream available to console
+    videoElement.srcObject = stream;
+    
+  } catch ( err ) {
+
+    console.error( err );
+    alert( 'could not connect stream' );;
+
+  }
+
+}
+
+async function getDevices() {
+  // AFAICT in Safari this only gets default devices until gUM is called :/
+  const deviceInfos = await navigator.mediaDevices.enumerateDevices();
+
+  window.deviceInfos = deviceInfos; // make available to console
+
+  for (const deviceInfo of deviceInfos) {
+    if (deviceInfo.kind === 'videoinput') {
+      params.source.availableSources.video[ deviceInfo.label ] = deviceInfo.deviceId;
+    }
+    // else if (deviceInfo.kind === 'audioinput') {
+    // } 
+  }
+}
 
 function sendPosesADDR( poses ) {
   osc.send( new OSC.Message( '/videoWidth', poses.image.width ) );
