@@ -220,8 +220,6 @@ function onResults(results) {
     return
   }
 
-  //console.log(results);
-
   stats.begin();
 
   canvasCtx.save();
