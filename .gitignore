@@ -3,3 +3,4 @@ mediapipe-electron/node_modules
 .DS_Store
 demos/.DS_Store
 bin/
+.vscode/settings.json
