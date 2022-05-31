@@ -13,13 +13,13 @@ let timer = Date.now();
 
 let params = {
   draw: {
-    segmentationMask: true
+    segmentationMask: false
   },
   source: {
     video: 'facetime',
     audio: 'default'
   },
-  OSC: {
+  osc: {
     enable: false,
     send_format: 'sendPosesADDR',
     host: 'localhost',
@@ -36,16 +36,16 @@ let folderSrc = gui.addFolder( 'Source' );
 folderSrc.add( params.source, 'video', { facetime: 'facetime', defaults: 'default' } );
 folderSrc.add( params.source, 'audio' );
 
-let folderOSC = gui.addFolder( 'OSC' );
-folderOSC.add( params.OSC, 'send_format', {
-  sendPosesADDR: 'sendPosesADDR',
-  sendPosesARR: 'sendPosesARR',
-  sendPosesJSON: 'sendPosesJSON',
-  sendPosesXML: 'sendPosesXML'
+let folderOsc = gui.addFolder( 'OSC' );
+folderOsc.add( params.osc, 'send_format', {
+  ADDR: 'sendPosesADDR',
+  JSON: 'sendPosesJSON',
+  // ARR:  'sendPosesARR',
+  // XML:  'sendPosesXML'
 } )
-folderOSC.add( params.OSC, 'enable' )
-folderOSC.add( params.OSC, 'host' )
-folderOSC.add( params.OSC, 'port' )
+folderOsc.add( params.osc, 'enable' )
+folderOsc.add( params.osc, 'host' )
+folderOsc.add( params.osc, 'port' )
 
 var keypointNames = [
   'nose',
@@ -71,6 +71,8 @@ document.body.appendChild( stats.dom );
 
 var settings = JSON.parse( fs.readFileSync( __dirname + "/settings.json", "utf8" ) );
 
+// OSC
+
 function openOSC() {
   osc = new OSC( {
     plugin: new OSC.DatagramPlugin( {
@@ -84,6 +86,22 @@ function openOSC() {
 }
 
 openOSC()
+
+// HTML
+
+document.body.addEventListener( "keypress", function ( event ) {
+  switch ( event.key ) {
+    
+    // L for Log
+    case 'l':
+      console.log( params.osc.send_format );
+      break;
+    
+    case 'x':
+      ipcRenderer.send( 'float' );
+      break;
+  }
+})
 
 var cameraElement = document.getElementById( 'camera' );
 
@@ -100,6 +118,8 @@ audio.style.left = "200px";
 audio.style.top = "0px";
 audio.style.display = "none";
 document.body.appendChild( audio );
+
+// Tests
 
 var net = undefined;
 var testImage = undefined;
@@ -125,60 +145,7 @@ navigator.mediaDevices.getUserMedia( { video: settings.cameraConfig } )
   } );
 
 
-function sendPosesADDR( poses ) {
-  osc.send( new OSC.Message( '/videoWidth', poses.image.width ) );
-  osc.send( new OSC.Message( '/videoHeight', poses.image.height ) );
-  //osc.send(new OSC.Message('/nPoses',poses.poseLandmarks.length));
-  for ( var i = 0; i < poses.poseLandmarks.length; i++ ) {
-    var kpt = poses.poseLandmarks[ i ];
-    var pth = '/pose/keypoints/' + keypointNames[ i ] + "/";
 
-    osc.send( new OSC.Message( pth + "x", kpt.x ) );
-    osc.send( new OSC.Message( pth + "y", kpt.y ) );
-    osc.send( new OSC.Message( pth + "z", kpt.z ) );
-    osc.send( new OSC.Message( pth + "visibility", kpt.visibility ) );
-  }
-
-}
-
-function sendPosesARR( poses ) {
-  var arr = [ "/poses/arr" ]
-  arr.push( camera.videoWidth );
-  arr.push( camera.videoHeight );
-  arr.push( poses.length );
-  for ( var i = 0; i < poses.length; i++ ) {
-    arr.push( poses[ i ].score )
-    for ( var j = 0; j < poses[ i ].keypoints.length; j++ ) {
-      var kpt = poses[ i ].keypoints[ j ];
-      arr.push( kpt.position.x );
-      arr.push( kpt.position.y );
-      arr.push( kpt.score );
-    }
-  }
-  osc.send( new OSC.Message( ...arr ) );
-}
-
-function sendPosesXML( poses ) {
-  function rd( n ) {
-    return Math.round( n * 100 ) / 100
-  }
-  var result = `<poses videoWidth="${camera.videoWidth}" videoHeight="${camera.videoHeight}" nPoses="${poses.length}">`;
-  for ( var i = 0; i < poses.length; i++ ) {
-    result += `<pose score="${rd( poses[ i ].score )}">`
-    for ( var j = 0; j < poses[ i ].keypoints.length; j++ ) {
-      var kpt = poses[ i ].keypoints[ j ];
-      result += `<keypoint part="${kpt.part}" x="${rd( kpt.position.x )}" y="${rd( kpt.position.y )}" score="${rd( kpt.score )}"/>`
-    }
-    result += "</pose>"
-  }
-  result += `</poses>`
-
-  osc.send( new OSC.Message( "/poses/xml", result ) );
-}
-
-function sendPosesJSON( poses ) {
-  osc.send( new OSC.Message( "/poses/json", JSON.stringify( poses ) ) );
-}
 
 
 const canvasElement = document.getElementsByClassName( 'output_canvas' )[ 0 ];
@@ -258,22 +225,15 @@ function onResults( results ) {
     { color: '#FF0000', lineWidth: 2 } );
 
   drawUtils.drawConnectors( canvasCtx, results.poseLandmarks, drawUtils.POSE_CONNECTIONS,
-    { color: '#FF0000', lineWidth: 4 } );
+    { color: '#00ff00', lineWidth: 4 } );
   canvasCtx.restore();
 
-  if ( params.OSC.enable ) {
-
-    if ( params.OSC.send_format == 'sendPosesJSON' ) {
-      sendPosesJSON( results.poseLandmarks );
-    } else if ( params.OSC.send_format == 'sendPosesADDR' ) {
-      sendPosesADDR( results )
-    }
-
-  }
+  // Send OSC through the function named as a string in params.
+  if ( params.osc.enable ) window[ params.osc.send_format ]( results );
 
 
 
-  // if (osc.status() === OSC.STATUS.IS_OPEN) {
+  // if (osc.status() === osc.STATUS.IS_OPEN) {
   //   osc.send( 'test', JSON.stringify( results.landmarks ) );
   // }
 
@@ -285,8 +245,60 @@ function onResults( results ) {
   stats.end();
 }
 
-document.body.addEventListener( "keypress", function () {
-  if ( event.key == 'x' ) {
-    ipcRenderer.send( 'float' );
+
+
+function sendPosesADDR( poses ) {
+  osc.send( new OSC.Message( '/videoWidth', poses.image.width ) );
+  osc.send( new OSC.Message( '/videoHeight', poses.image.height ) );
+  //osc.send(new OSC.Message('/nPoses',poses.poseLandmarks.length));
+  for ( var i = 0; i < poses.poseLandmarks.length; i++ ) {
+    var kpt = poses.poseLandmarks[ i ];
+    var pth = '/pose/keypoints/' + keypointNames[ i ] + "/";
+
+    osc.send( new OSC.Message( pth + "x", kpt.x ) );
+    osc.send( new OSC.Message( pth + "y", kpt.y ) );
+    osc.send( new OSC.Message( pth + "z", kpt.z ) );
+    osc.send( new OSC.Message( pth + "visibility", kpt.visibility ) );
   }
-} )
+
+}
+
+function sendPosesJSON( poses ) {
+  osc.send( new OSC.Message( "/poses/json", JSON.stringify( poses ) ) );
+}
+
+function sendPosesARR( poses ) {
+  var arr = [ "/poses/arr" ]
+  arr.push( camera.videoWidth );
+  arr.push( camera.videoHeight );
+  arr.push( poses.length );
+  for ( var i = 0; i < poses.length; i++ ) {
+    arr.push( poses[ i ].score )
+    for ( var j = 0; j < poses[ i ].keypoints.length; j++ ) {
+      var kpt = poses[ i ].keypoints[ j ];
+      arr.push( kpt.position.x );
+      arr.push( kpt.position.y );
+      arr.push( kpt.score );
+    }
+  }
+  osc.send( new OSC.Message( ...arr ) );
+}
+
+function sendPosesXML( poses ) {
+  function rd( n ) {
+    return Math.round( n * 100 ) / 100
+  }
+  var result = `<poses videoWidth="${camera.videoWidth}" videoHeight="${camera.videoHeight}" nPoses="${poses.length}">`;
+  for ( var i = 0; i < poses.length; i++ ) {
+    result += `<pose score="${rd( poses[ i ].score )}">`
+    for ( var j = 0; j < poses[ i ].keypoints.length; j++ ) {
+      var kpt = poses[ i ].keypoints[ j ];
+      result += `<keypoint part="${kpt.part}" x="${rd( kpt.position.x )}" y="${rd( kpt.position.y )}" score="${rd( kpt.score )}"/>`
+    }
+    result += "</pose>"
+  }
+  result += `</poses>`
+
+  osc.send( new OSC.Message( "/poses/xml", result ) );
+}
+
