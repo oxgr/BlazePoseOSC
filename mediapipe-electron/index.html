@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils_3d/control_utils_3d.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils_3d/control_utils_3d.js"
+    crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
-  
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/16/Stats.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/dat.gui@0.7.9/build/dat.gui.min.js" crossorigin="anonymous"></script>
 
@@ -17,14 +19,14 @@
 <body>
   <div class="container">
     <div>
-        <video class="input_video" hidden="hidden" ></video>
+      <video class="input_video" hidden="hidden"></video>
     </div>
     <div>
       <canvas class="output_canvas"></canvas>
     </div>
     <div class="landmark-grid-container"></div>
   </div>
-    
+
 
   <div class="select">
     <label for="audioSource">Audio source: </label><select id="audioSource"></select>
@@ -43,4 +45,5 @@
 
 
 </body>
+
 </html>
