@@ -268,7 +268,7 @@ function generateAudioElement() {
   audio.style.top = "0px";
   audio.style.display = "none";
   let source = document.createElement( "source" );
-  source.src = "https://www.w3schools.com/html/horse.mp3";
+  source.src = `${__dirname}/silent.mp3`;
   audio.appendChild( source );
   document.body.appendChild( audio );
 
