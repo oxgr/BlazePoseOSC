@@ -1,25 +1,69 @@
 {
-  "name": "pose-osc",
+  "name": "blazepose-osc",
   "version": "1.0.0",
   "description": "",
-  "main": "main.js",
+  "main": "./main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder -m"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "electron": "^7.2.4",
-    "electron-packager": "^14.0.6"
+    "electron-packager": "^14.0.6",
+    "electron-builder": "^23.0.3"
   },
   "dependencies": {
     "@mediapipe/camera_utils": "^0.3.1640029074",
     "@mediapipe/drawing_utils": "^0.3.1620248257",
-    "@mediapipe/pose": "^0.5.1635988162",
-    "@tensorflow-models/posenet": "^2.1.3",
-    "@tensorflow/tfjs-node": "^1.2.9",
-    "dat.gui": "^0.7.9",
-    "osc-js": "^2.0.3",
-    "stats.js": "^0.17.0"
+      "@mediapipe/pose": "^0.5.1635988162",
+      "@tensorflow-models/posenet": "^2.1.3",
+      "@tensorflow/tfjs-node": "^1.2.9",
+      "dat.gui": "^0.7.9",
+      "osc-js": "^2.0.3",
+      "stats.js": "^0.17.0"
+  },
+  "build": {
+    "appId": "com.electron.blazeposeosc",
+    "productName": "BlazePoseOSC",
+    "directories": {
+        "app": "./",
+        "output": "out",
+        "buildResources": "build-resources"
+    },
+    "files": [
+      "package.json",
+      "node_modules",
+      "app.js",
+      "index.html",
+      "main.js",
+      "preload.js",
+      "settings.json"
+    ],
+    "dmg": {
+        "background": null,
+        "backgroundColor": "#ffffff",
+        "window": {
+            "width": "400",
+            "height": "300"
+        },
+        "contents": [
+            {
+                "x": 100,
+                "y": 100
+            },
+            {
+                "x": 300,
+                "y": 100,
+                "type": "link",
+                "path": "/Applications"
+            }
+        ]
+    },
+    "mac": {
+        "target": "dmg",
+        "category": "public.app-category.utilities"
+      }
   }
 }

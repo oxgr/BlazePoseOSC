@@ -184,7 +184,10 @@ videoElement.onloadeddata = function () {
 
 const pose = new Pose.Pose( {
   locateFile: ( file ) => {
-    return `./node_modules/@mediapipe/pose/${file}`;
+    const localPath = `./node_modules/@mediapipe/pose/${file}`;
+    const buildPath = `./app.asar.unpacked/node_modules/@mediapipe/pose/${file}`;
+    const path = fs.existsSync( './node_modules' ) ? localPath : buildPath;
+    return path ;
   }
 } );
 
