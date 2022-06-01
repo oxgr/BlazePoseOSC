@@ -27,8 +27,8 @@ const params = {
     }
   },
   osc: {
-    enable: false,
-    send_format: 'sendPosesADDR',
+    enable: true,
+    send_format: 'sendPosesJSON',
     host: 'localhost',
     port: '9527',
     frequency: 60,
@@ -263,9 +263,6 @@ function generateAudioElement() {
   audio.loop = "loop";
   audio.autoplay = "autoplay";
   audio.volume = "0.001";
-  audio.style.position = "absolute";
-  audio.style.left = "200px";
-  audio.style.top = "0px";
   audio.style.display = "none";
   let source = document.createElement( "source" );
   source.src = `${__dirname}/silent.mp3`;
