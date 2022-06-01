@@ -9,12 +9,14 @@ const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' )
 
 let timer = Date.now();
 
-let params = {
+const params = {
   global: {
     showStats: true,
   },
   draw: {
-    segmentationMask: false
+    segmentationMask: false,
+    landmarkSize: 4,
+    connectorSize: 4,
   },
   source: {
     video: '',
@@ -33,8 +35,7 @@ let params = {
   }
 }
 
-
-var keypointNames = [
+const keypointNames = [
   'nose',
   'left_eye_inner',   'left_eye',   'left_eye_outer',
   'right_eye_inner',  'right_eye',  'right_eye_outer',
@@ -53,141 +54,41 @@ var keypointNames = [
   'left_foot_index',  'right_foot_index'
 ]
 
+// Settings
+
+let settings = JSON.parse( fs.readFileSync( __dirname + "/settings.json", "utf8" ) );
+
+// OSC
+
+let osc;
+openOSC( osc )
+
+// HTML
+
+document.body.addEventListener( "keypress", onKeyPress )
+
+const videoElement = document.getElementById( 'input_video' );
+const canvasElement = document.getElementById( 'output_canvas' );
+const canvasCtx = canvasElement.getContext( '2d' );
+
+//// Audio playback to ensure camera keeps rendering even when window is not in focus
+generateAudioElement();
+
+// GUI
+
+getStream( params.source.video, videoElement ).then( getDevices( params.source.availableSources.video ) ).then( generateGUI );
+
 // Stats
 
 let stats = new Stats();
 stats.showPanel( 0 );
 document.body.appendChild( stats.dom );
 
-// Settings
-
-var settings = JSON.parse( fs.readFileSync( __dirname + "/settings.json", "utf8" ) );
-
-// OSC
-
-let osc;
-
-function openOSC() {
-  osc = new OSC( {
-    plugin: new OSC.DatagramPlugin( {
-      send: {
-        host: settings.host,
-        port: settings.port,
-      }
-    } )
-  } );
-  osc.open();
-}
-
-openOSC()
-
-// HTML
-
-document.body.addEventListener( "keypress", function ( event ) {
-  switch ( event.key ) {
-    
-    // L for Log
-    case 'l':
-      console.log( {
-        videoElement: videoElement,
-        drawUtils, drawUtils
-      } );
-      break;
-
-    case 'g':
-      dat.GUI.toggleHide();
-			params.global.showStats = !params.global.showStats;
-			stats.dom.style.display = params.global.showStats ? "block" : "none";
-			// logDOM.style.display = showStats ? "block" : "none";
-      break;
-    
-    case '2':
-      window.open( './blazepose-recorder.html', target="_self");
-
-    case 'x':
-      ipcRenderer.send( 'float' );
-      break;
-  }
-})
-
-var videoElement = document.getElementById( 'input_video' );
-
-var audio = document.createElement( "audio" );
-audio.controls = "controls";
-audio.loop = "loop";
-audio.autoplay = "autoplay";
-audio.volume = "0.001";
-var source = document.createElement( "source" );
-source.src = "https://www.w3schools.com/html/horse.mp3";
-audio.appendChild( source );
-audio.style.position = "absolute";
-audio.style.left = "200px";
-audio.style.top = "0px";
-audio.style.display = "none";
-document.body.appendChild( audio );
-
-// GUI
-
-getStream().then( getDevices ).then( generateGUI );
-
-
-// Tests
-
-var net = undefined;
-var testImage = undefined;
-var testImageUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Rembrandt_-_The_Anatomy_Lesson_of_Dr_Nicolaes_Tulp.jpg/637px-Rembrandt_-_The_Anatomy_Lesson_of_Dr_Nicolaes_Tulp.jpg";
-var frameCount = 0;
-
-
-// navigator.mediaDevices.enumerateDevices().then( function ( mediaDevices ) {
-//   mediaDevices.forEach( mediaDevice => {
-//     if ( mediaDevice.kind === 'videoinput' ) {
-//       console.log( "camera found:", mediaDevice.label );
-//       console.log( "deviceId:", mediaDevice.deviceId )
-//     }
-//   } );
-//   console.log( "copy-paste a deviceId to settings.json to specify which camera to use." )
-// } )
-
-// navigator.mediaDevices.getUserMedia( { video: settings.cameraConfig } )
-//   .then( function ( stream ) {
-//     camera.srcObject = stream;
-//   } ).catch( function () {
-//     alert( 'could not connect stream' );
-//   } );
-
-
-
-
-
-const canvasElement = document.getElementById( 'output_canvas' );
-const canvasCtx = canvasElement.getContext( '2d' );
-
-// canvasCtx.canvas.width = window.innerWidth;
-// canvasCtx.canvas.height = 3 * window.innerWidth / 4;
-
-
-var [ w, h ] = [ 0, 0 ];
-
-videoElement.onloadeddata = function () {
-
-  [ w, h ] = [ videoElement.videoWidth, videoElement.videoHeight ];
-
-  console.log( "camera dimensions", w, h );
-
-  canvasCtx.canvas.width = w
-  canvasCtx.canvas.height = h;
-
-  ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
-
-}
+// BlazePose
 
 const pose = new Pose.Pose( {
   locateFile: ( file ) => {
-    const localPath = `./node_modules/@mediapipe/pose/${file}`;
-    const buildPath = `./app.asar.unpacked/node_modules/@mediapipe/pose/${file}`;
-    const path = fs.existsSync( './node_modules' ) ? localPath : buildPath;
-    return path ;
+    return `${__dirname}/node_modules/@mediapipe/pose/${file}`; ;
   }
 } );
 
@@ -201,6 +102,23 @@ pose.setOptions( {
 } );
 pose.onResults( onResults );
 
+// Camera
+
+var [ w, h ] = [ 0, 0 ];
+
+videoElement.onloadeddata = function () {
+
+  [ w, h ] = [ videoElement.videoWidth, videoElement.videoHeight ];
+
+  console.log( "camera dimensions", w, h );
+
+  canvasCtx.canvas.width = w;
+  canvasCtx.canvas.height = h;
+
+  ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
+
+}
+
 const camera = new Camera( videoElement, {
   onFrame: async () => {
     await pose.send( { image: videoElement } );
@@ -208,7 +126,16 @@ const camera = new Camera( videoElement, {
   width: w,
   height: h
 } );
+
 camera.start();
+
+// Tests
+  
+// var net = undefined;
+// var testImage = undefined;
+// var testImageUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Rembrandt_-_The_Anatomy_Lesson_of_Dr_Nicolaes_Tulp.jpg/637px-Rembrandt_-_The_Anatomy_Lesson_of_Dr_Nicolaes_Tulp.jpg";
+// var frameCount = 0;
+
 
 
 function onResults( results ) {
@@ -226,9 +153,9 @@ function onResults( results ) {
   }
 
   // Only overwrite existing pixels.
-  canvasCtx.globalCompositeOperation = 'source-in';
-  canvasCtx.fillStyle = '#0000ff';
-  canvasCtx.fillRect( 0, 0, canvasElement.width, canvasElement.height );
+  // canvasCtx.globalCompositeOperation = 'source-in';
+  // canvasCtx.fillStyle = '#0000ff';
+  // canvasCtx.fillRect( 0, 0, canvasElement.width, canvasElement.height );
 
   // // Only overwrite missing pixels.
   // canvasCtx.globalCompositeOperation = 'destination-atop';
@@ -237,9 +164,9 @@ function onResults( results ) {
 
   canvasCtx.globalCompositeOperation = 'source-over';
   drawUtils.drawConnectors( canvasCtx, results.poseLandmarks, Pose.POSE_CONNECTIONS,
-    { color: '#aaff00', lineWidth: 4 } );
+    { color: '#aaff00', lineWidth: params.draw.connectorSize } );
   drawUtils.drawLandmarks( canvasCtx, results.poseLandmarks,
-    { color: '#ff0000', lineWidth: 2 } );
+    { color: '#ff0000', lineWidth: params.draw.landmarkSize } );
   canvasCtx.restore();
 
 
@@ -270,11 +197,13 @@ function generateGUI() {
   let gui = new dat.GUI();
 
   // let folderSrc = gui.addFolder( 'Source' );
-  gui.add( params.source, 'video', params.source.availableSources.video ).name( 'Input Source' ).onChange( getStream );
+  gui.add( params.source, 'video', params.source.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, videoElement) );
   // folderSrc.add( params.source, 'audio' );
 
   let folderDraw = gui.addFolder( 'Draw' );
   folderDraw.add( params.draw, 'segmentationMask' )
+  folderDraw.add( params.draw, 'landmarkSize' , 0, 10 ).step( 1 );
+  folderDraw.add( params.draw, 'connectorSize', 0, 10 ).step( 1 );
 
   let folderOsc = gui.addFolder( 'OSC' );
   folderOsc.add( params.osc, 'enable' )
@@ -290,23 +219,22 @@ function generateGUI() {
 
 }
 
-async function getStream() {
+// Gets stream from source, sets it to element.
+async function getStream( sourceId, element ) {
   if (window.stream) {
     window.stream.getTracks().forEach(track => {
       track.stop();
     });
   }
 
-  const videoSource = params.source.video;
   const constraints = {
-    video: {deviceId: videoSource ? {exact: videoSource} : undefined}
+    video: {deviceId: sourceId ? {exact: sourceId} : undefined}
   };
 
   try {
 
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    window.stream = stream; // make stream available to console
-    videoElement.srcObject = stream;
+    element.srcObject = stream;
     
   } catch ( err ) {
 
@@ -317,19 +245,73 @@ async function getStream() {
 
 }
 
-async function getDevices() {
+async function getDevices( sources ) {
   // AFAICT in Safari this only gets default devices until gUM is called :/
   const deviceInfos = await navigator.mediaDevices.enumerateDevices();
 
-  window.deviceInfos = deviceInfos; // make available to console
-
   for (const deviceInfo of deviceInfos) {
     if (deviceInfo.kind === 'videoinput') {
-      params.source.availableSources.video[ deviceInfo.label ] = deviceInfo.deviceId;
+      sources[ deviceInfo.label ] = deviceInfo.deviceId;
     }
-    // else if (deviceInfo.kind === 'audioinput') {
-    // } 
   }
+}
+
+function generateAudioElement() {
+
+  let audio = document.createElement( "audio" );
+  audio.controls = "controls";
+  audio.loop = "loop";
+  audio.autoplay = "autoplay";
+  audio.volume = "0.001";
+  audio.style.position = "absolute";
+  audio.style.left = "200px";
+  audio.style.top = "0px";
+  audio.style.display = "none";
+  let source = document.createElement( "source" );
+  source.src = "https://www.w3schools.com/html/horse.mp3";
+  audio.appendChild( source );
+  document.body.appendChild( audio );
+
+}
+
+function onKeyPress ( event ) {
+
+  switch ( event.key ) {
+    
+    // L for Log
+    case 'l':
+      console.log( {
+        videoElement: videoElement,
+        drawUtils, drawUtils
+      } );
+      break;
+
+    case 'g':
+      dat.GUI.toggleHide();
+      params.global.showStats = !params.global.showStats;
+      stats.dom.style.display = params.global.showStats ? "block" : "none";
+      // logDOM.style.display = showStats ? "block" : "none";
+      break;
+    
+    case 'r':
+      window.open( './blazepose-recorder.html', target="_self");
+      
+    case 'x':
+      ipcRenderer.send( 'float' );
+      break;
+  }
+}
+
+function openOSC( osc ) {
+  osc = new OSC( {
+    plugin: new OSC.DatagramPlugin( {
+      send: {
+        host: settings.host,
+        port: settings.port,
+      }
+    } )
+  } );
+  osc.open();
 }
 
 function sendPosesADDR( poses ) {
