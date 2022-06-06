@@ -13,18 +13,28 @@ const params = {
   global: {
     showStats: true,
   },
-  draw: {
-    segmentationMask: false,
-    landmarkSize: 4,
-    connectorSize: 4,
-  },
-  source: {
-    video: '',
-    audio: '',
+  input: {
+    source: '',
+    mirror: true,
     availableSources: {
       video: {},
       audio: {}
     }
+  },
+  pose: {
+    options: {
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      enableSegmentation: true,
+      smoothSegmentation: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    }
+  },
+  draw: {
+    segmentationMask: false,
+    landmarkSize: 4,
+    connectorSize: 4,
   },
   osc: {
     enable: true,
@@ -60,23 +70,28 @@ let settings = JSON.parse( fs.readFileSync( __dirname + "/settings.json", "utf8"
 
 // OSC
 
-let osc;
-openOSC( osc )
+let osc = openOSC( params.osc.host, params.osc.port );
 
 // HTML
 
 document.body.addEventListener( "keypress", onKeyPress )
 
 const videoElement = document.getElementById( 'input_video' );
+const videoCanvasElement = document.getElementById( 'input_video_canvas' );
+const videoCanvasCtx = videoCanvasElement.getContext( '2d' );
+
 const canvasElement = document.getElementById( 'output_canvas' );
 const canvasCtx = canvasElement.getContext( '2d' );
+// if ( params.input.mirror ) videoElement.style.scaleX = '-1';
 
 //// Audio playback to ensure camera keeps rendering even when window is not in focus
-generateAudioElement();
+generateAudioElement( `${__dirname}/silent.mp3` );
 
 // GUI
 
-getStream( params.source.video, videoElement ).then( getDevices( params.source.availableSources.video ) ).then( generateGUI );
+getStream( params.input.source, videoElement )
+.then( getDevices( params.input.availableSources.video ) )
+.then( generateGUI( params ) );
 
 // Stats
 
@@ -92,14 +107,7 @@ const pose = new Pose.Pose( {
   }
 } );
 
-pose.setOptions( {
-  modelComplexity: 1,
-  smoothLandmarks: true,
-  enableSegmentation: true,
-  smoothSegmentation: true,
-  minDetectionConfidence: 0.5,
-  minTrackingConfidence: 0.5
-} );
+pose.setOptions( params.pose.options );
 pose.onResults( onResults );
 
 // Camera
@@ -108,10 +116,15 @@ var [ w, h ] = [ 0, 0 ];
 
 videoElement.onloadeddata = function () {
 
+  // if ( params.source.mirror ) videoElement.style.transform = 'rotateY( 180deg )';
+  
+
   [ w, h ] = [ videoElement.videoWidth, videoElement.videoHeight ];
 
   console.log( "camera dimensions", w, h );
 
+  videoCanvasCtx.canvas.width = w;
+  videoCanvasCtx.canvas.height = h;
   canvasCtx.canvas.width = w;
   canvasCtx.canvas.height = h;
 
@@ -119,9 +132,13 @@ videoElement.onloadeddata = function () {
 
 }
 
+
+
 const camera = new Camera( videoElement, {
   onFrame: async () => {
-    await pose.send( { image: videoElement } );
+    videoCanvasCtx.clearRect( 0, 0, canvasElement.width, canvasElement.height );
+    videoCanvasCtx.drawImage( videoElement, 100, 0, 0, 100 )
+    await pose.send( { image: videoCanvasElement } );
   },
   width: w,
   height: h
@@ -135,8 +152,6 @@ camera.start();
 // var testImage = undefined;
 // var testImageUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Rembrandt_-_The_Anatomy_Lesson_of_Dr_Nicolaes_Tulp.jpg/637px-Rembrandt_-_The_Anatomy_Lesson_of_Dr_Nicolaes_Tulp.jpg";
 // var frameCount = 0;
-
-
 
 function onResults( results ) {
 
@@ -192,33 +207,6 @@ function onResults( results ) {
   stats.end();
 }
 
-function generateGUI() {
-
-  let gui = new dat.GUI();
-
-  // let folderSrc = gui.addFolder( 'Source' );
-  gui.add( params.source, 'video', params.source.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, videoElement) );
-  // folderSrc.add( params.source, 'audio' );
-
-  let folderDraw = gui.addFolder( 'Draw' );
-  folderDraw.add( params.draw, 'segmentationMask' )
-  folderDraw.add( params.draw, 'landmarkSize' , 0, 10 ).step( 1 );
-  folderDraw.add( params.draw, 'connectorSize', 0, 10 ).step( 1 );
-
-  let folderOsc = gui.addFolder( 'OSC' );
-  folderOsc.add( params.osc, 'enable' )
-  folderOsc.add( params.osc, 'send_format', {
-    ADDR: 'sendPosesADDR',
-    JSON: 'sendPosesJSON',
-    // ARR:  'sendPosesARR',
-    // XML:  'sendPosesXML'
-  } )
-  folderOsc.add( params.osc, 'host' )
-  folderOsc.add( params.osc, 'port' )
-  folderOsc.add( params.osc, 'frequency', 1, 60 ).step( 1 );
-
-}
-
 // Gets stream from source, sets it to element.
 async function getStream( sourceId, element ) {
   if (window.stream) {
@@ -256,7 +244,43 @@ async function getDevices( sources ) {
   }
 }
 
-function generateAudioElement() {
+function generateGUI( params ) {
+
+  let gui = new dat.GUI();
+
+  let folderSrc = gui.addFolder( 'Input' );
+  folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, videoElement) );
+  folderSrc.add( params.input, 'mirror' ).onChange( ( val ) => videoElement.style.transform = val ? 'scale( -1, 1 )' : 'scale( 1, 1 )' )
+  // folderSrc.add( params.input, 'audio' );
+
+  let folderPose = gui.addFolder( 'Pose' );
+  folderPose.add( params.pose.options, 'minDetectionConfidence', 0, 1 ).step( 0.01 ).onChange( () => pose.setOptions( params.pose.options ) )
+
+  let folderDraw = gui.addFolder( 'Draw' );
+  folderDraw.add( params.draw, 'segmentationMask' )
+  folderDraw.add( params.draw, 'landmarkSize' , 0, 10 ).step( 1 );
+  folderDraw.add( params.draw, 'connectorSize', 0, 10 ).step( 1 );
+
+  let folderOsc = gui.addFolder( 'OSC' );
+  folderOsc.add( params.osc, 'enable' )
+  folderOsc.add( params.osc, 'send_format', {
+    ADDR: 'sendPosesADDR',
+    JSON: 'sendPosesJSON',
+    // ARR:  'sendPosesARR',
+    // XML:  'sendPosesXML'
+  } )
+  folderOsc.add( params.osc, 'host' )
+  folderOsc.add( params.osc, 'port' )
+  folderOsc.add( params.osc, 'frequency', 1, 60 ).step( 1 );
+
+}
+
+/**
+ * Generates an audio DOM element that autoplays an mp3.
+ * By default, videos in browsers usually stop rendering when the window is out of focus.
+ * This autoplayed audio circumvents that.
+ */
+function generateAudioElement( pathToAudioFile ) {
 
   let audio = document.createElement( "audio" );
   audio.controls = "controls";
@@ -265,7 +289,7 @@ function generateAudioElement() {
   audio.volume = "0.001";
   audio.style.display = "none";
   let source = document.createElement( "source" );
-  source.src = `${__dirname}/silent.mp3`;
+  source.src = pathToAudioFile;
   audio.appendChild( source );
   document.body.appendChild( audio );
 
@@ -275,11 +299,13 @@ function onKeyPress ( event ) {
 
   switch ( event.key ) {
     
-    // L for Log
-    case 'l':
+    // C for console.log
+    case 'c':
       console.log( {
         videoElement: videoElement,
-        drawUtils, drawUtils
+        drawUtils, drawUtils,
+        camera: camera,
+        CameraImport: Camera
       } );
       break;
 
@@ -299,18 +325,27 @@ function onKeyPress ( event ) {
   }
 }
 
-function openOSC( osc ) {
-  osc = new OSC( {
+/**
+ * Generates and returns an OSC instance
+ * */
+function openOSC( host, port ) {
+  let osc = new OSC( {
     plugin: new OSC.DatagramPlugin( {
       send: {
-        host: settings.host,
-        port: settings.port,
+        host: host,
+        port: port,
       }
     } )
   } );
   osc.open();
+  return osc;
 }
 
+/**
+ * Sends input pose landmarks through osc instance.
+ * 
+ * @param {Array} poses Array of 33 landmarks organized in objects with x, y, z, and visibility properties - all normalized.
+ */
 function sendPosesADDR( poses ) {
   osc.send( new OSC.Message( '/videoWidth', poses.image.width ) );
   osc.send( new OSC.Message( '/videoHeight', poses.image.height ) );

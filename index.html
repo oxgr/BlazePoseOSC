@@ -22,6 +22,7 @@
       }
         
       #input_video,
+      #input_video_canvas,
       #output_canvas {
 
         width: 100%;
@@ -32,8 +33,13 @@
 
       }
 
-      #camera {
+      #input_video_canvas {
         z-index: -1;
+      }
+
+      #input_video {
+        z-index: -2;
+        /* transform: scale( -1, 1 ); */
       }
 
     </style>
@@ -42,7 +48,8 @@
     
 
     <div class="container">
-      <video id="input_video" ></video>
+      <video id="input_video" hidden="hidden"></video>
+      <canvas id="input_video_canvas"></canvas>
       <!-- <video id="camera" autoplay> </video> -->
       <canvas id="output_canvas"></canvas>
     </div>
