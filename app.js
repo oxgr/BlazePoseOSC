@@ -102,6 +102,7 @@ pose.setOptions( {
   minDetectionConfidence: 0.5,
   minTrackingConfidence: 0.5
 } );
+
 pose.onResults( onResults );
 
 // Camera
@@ -124,16 +125,14 @@ const authorize = async (host = '192.168.0.200') => {
 
 const play = (host='192.168.0.200' , encoding = 'h264')=> {
 
-  console.log(videoElement)
+  let mediaElement = videoElement
 
   // Setup a new pipeline
   const pipeline = new pipelines.Html5VideoPipeline({
     ws: { uri: `ws://${host}/rtsp-over-websocket` },
     rtsp: { uri: `rtsp://${host}/axis-media/media.amp?videocodec=${encoding}` },
-    videoElement,
+    mediaElement,
   })
-
-  console.log(pipeline)
 
   // Restart stream on RTCP BYE (stream ended)
   pipeline.rtsp.onRtcp = (rtcp) => {
@@ -174,45 +173,15 @@ videoElement.onloadeddata = function () {
 
 }
 
-
-
-// const camera = new Camera(
-//   videoElement,
-//   {
-//   onFrame: async () => {
-//     await pose.send( { image: videoElement } );
-//   },
-//   width: w,
-//   height: h
-// } );
-
-
-// const camera = new MjpegCamera({
-//   name: 'IP_Camera',
-//   user: 'root',
-//   password: 'hemmer',
-//   url: "http://192.168.0.200/mjpg/video.mjpg"
-//   //motion: true
-// });
-
-// camera.start();
-// console.log( camera  );
-// console.log(camera.connection);
-
-// // setInterval(
-// //   async () => {
-// //     camera.getScreenshot( async (err,frame) => 
-// //       await pose.send({image: frame})
-// //       //pose.send({image: frame})
-// //     })
-// //   },
-// // 16.6);
-
-// camera.getScreenshot(function(err, frame) {
-//   //console.log(frame);
-//   pose.send({image:frame});  
-// });
-
+const camera = new Camera(
+  videoElement,
+  {
+  onFrame: async () => {
+    await pose.send( { image: videoElement } );
+  },
+  width: w,
+  height: h
+} );
 
 
 // Tests
