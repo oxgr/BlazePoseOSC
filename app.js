@@ -6,6 +6,9 @@ const dat = require( 'dat.gui' );
 const Stats = require( 'stats.js' );
 const { Camera } = require( '@mediapipe/camera_utils' );
 const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' )
+//const mediaStream = require('media-stream-library');
+//const MjpegCamera = require('mjpeg-camera');
+const { pipelines } = window.mediaStreamLibrary
 
 let timer = Date.now();
 
@@ -66,7 +69,6 @@ openOSC( osc )
 // HTML
 
 document.body.addEventListener( "keypress", onKeyPress )
-
 const videoElement = document.getElementById( 'input_video' );
 const canvasElement = document.getElementById( 'output_canvas' );
 const canvasCtx = canvasElement.getContext( '2d' );
@@ -76,7 +78,7 @@ generateAudioElement();
 
 // GUI
 
-getStream( params.source.video, videoElement ).then( getDevices( params.source.availableSources.video ) ).then( generateGUI );
+//getStream( params.source.video, videoElement ).then( getDevices( params.source.availableSources.video ) ).then( generateGUI );
 
 // Stats
 
@@ -103,6 +105,59 @@ pose.setOptions( {
 pose.onResults( onResults );
 
 // Camera
+const authorize = async (host = '192.168.0.200') => {
+  // Force a login by fetching usergroup
+  const fetchOptions = {
+    credentials: 'include',
+    headers: {
+      'Axis-Orig-Sw': true,
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    mode: 'no-cors',
+  }
+  try {
+    await window.fetch(`http://${host}/axis-cgi/usergroup.cgi`, fetchOptions)
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+const play = (host='192.168.0.200' , encoding = 'h264')=> {
+
+  console.log(videoElement)
+
+  // Setup a new pipeline
+  const pipeline = new pipelines.Html5VideoPipeline({
+    ws: { uri: `ws://${host}/rtsp-over-websocket` },
+    rtsp: { uri: `rtsp://${host}/axis-media/media.amp?videocodec=${encoding}` },
+    videoElement,
+  })
+
+  console.log(pipeline)
+
+  // Restart stream on RTCP BYE (stream ended)
+  pipeline.rtsp.onRtcp = (rtcp) => {
+    if (isRtcpBye(rtcp)) {
+      setTimeout(() => play(host, encoding), 0)
+    }
+  }
+
+  pipeline.ready.then(() => {
+    pipeline.rtsp.play()
+  })
+
+  return pipeline
+}
+
+let pipeline;
+
+async function startIpStream (){
+  pipeline && pipeline.close()
+  await authorize()
+  pipeline = play()
+}
+
+startIpStream()
 
 var [ w, h ] = [ 0, 0 ];
 
@@ -115,19 +170,50 @@ videoElement.onloadeddata = function () {
   canvasCtx.canvas.width = w;
   canvasCtx.canvas.height = h;
 
-  ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
+  ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight );
 
 }
 
-const camera = new Camera( videoElement, {
-  onFrame: async () => {
-    await pose.send( { image: videoElement } );
-  },
-  width: w,
-  height: h
-} );
 
-camera.start();
+
+// const camera = new Camera(
+//   videoElement,
+//   {
+//   onFrame: async () => {
+//     await pose.send( { image: videoElement } );
+//   },
+//   width: w,
+//   height: h
+// } );
+
+
+// const camera = new MjpegCamera({
+//   name: 'IP_Camera',
+//   user: 'root',
+//   password: 'hemmer',
+//   url: "http://192.168.0.200/mjpg/video.mjpg"
+//   //motion: true
+// });
+
+// camera.start();
+// console.log( camera  );
+// console.log(camera.connection);
+
+// // setInterval(
+// //   async () => {
+// //     camera.getScreenshot( async (err,frame) => 
+// //       await pose.send({image: frame})
+// //       //pose.send({image: frame})
+// //     })
+// //   },
+// // 16.6);
+
+// camera.getScreenshot(function(err, frame) {
+//   //console.log(frame);
+//   pose.send({image:frame});  
+// });
+
+
 
 // Tests
   
@@ -254,6 +340,8 @@ async function getDevices( sources ) {
       sources[ deviceInfo.label ] = deviceInfo.deviceId;
     }
   }
+
+  //sources["IP_Camera"]
 }
 
 function generateAudioElement() {
