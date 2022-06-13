@@ -7,7 +7,10 @@ const Stats = require( 'stats.js' );
 const { Camera } = require( '@mediapipe/camera_utils' );
 const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' )
 
-let timer = Date.now();
+
+// Settings
+
+let settings = JSON.parse( fs.readFileSync( __dirname + "/settings.json", "utf8" ) );
 
 const params = {
   global: {
@@ -16,6 +19,7 @@ const params = {
   input: {
     source: '',
     mirror: true,
+    rotate: 0,
     availableSources: {
       video: {},
       audio: {}
@@ -32,6 +36,7 @@ const params = {
     }
   },
   draw: {
+    landmarks: true,
     segmentationMask: false,
     landmarkSize: 4,
     connectorSize: 4,
@@ -64,9 +69,7 @@ const keypointNames = [
   'left_foot_index', 'right_foot_index'
 ]
 
-// Settings
-
-let settings = JSON.parse( fs.readFileSync( __dirname + "/settings.json", "utf8" ) );
+let timer = Date.now();
 
 // OSC
 
@@ -82,7 +85,6 @@ const videoCanvasCtx = videoCanvasElement.getContext( '2d' );
 
 const canvasElement = document.getElementById( 'output_canvas' );
 const canvasCtx = canvasElement.getContext( '2d' );
-// if ( params.input.mirror ) videoElement.style.scaleX = '-1';
 
 //// Audio playback to ensure camera keeps rendering even when window is not in focus
 generateAudioElement( `${__dirname}/silent.mp3` );
@@ -98,17 +100,6 @@ getStream( params.input.source, videoElement )
 let stats = new Stats();
 stats.showPanel( 0 );
 document.body.appendChild( stats.dom );
-
-// BlazePose
-
-const pose = new Pose.Pose( {
-  locateFile: ( file ) => {
-    return `${__dirname}/node_modules/@mediapipe/pose/${file}`;
-  }
-} );
-
-pose.setOptions( params.pose.options );
-pose.onResults( onResults );
 
 // Camera
 
@@ -129,50 +120,108 @@ videoElement.onloadeddata = function () {
 
 }
 
+// BlazePose
+
+const pose = new Pose.Pose( {
+  locateFile: ( file ) => {
+    return `${__dirname}/node_modules/@mediapipe/pose/${file}`;
+  }
+} );
+
+pose.setOptions( params.pose.options );
+pose.onResults( onResults );
+
+// Camera  
+
+const camera = new Camera( videoElement, {
+  onFrame: onFrame,
+  width: w,
+  height: h
+} );
+
+camera.start();
+
+
 main( params );
 
 function main( params ) {
 
-  const camera = new Camera( videoElement, {
-    onFrame: onFrame,
-    width: w,
-    height: h
-  } );
-
-  camera.start();
-
 }
+
+// Pose I/O
 
 async function onFrame() {
 
   // Settings args because @mediapipe/camera_utils returns a specific to onFrame and can't take a function with custom ones.
   // Even though this args takes globals, this is here so refactoring to a pure function is easier in the future if we don't use @mediapipe/camera_utils.
   const args = {
-    inputElement: videoElement,
-    outputElement: videoCanvasElement,
-    outputContext: videoCanvasCtx,
+    video: videoElement,
+    canvas: videoCanvasElement,
+    context: videoCanvasCtx,
     pose: pose
   }
 
-  let w = args.outputElement.width;
+  args.context.drawImage( args.video, 0, 0, args.canvas.width, args.canvas.height )
 
-  // Save context settings
-  args.outputContext.save();
-
-  // If mirroring, reverse scale and width
-  if ( !!params.input.mirror ) {
-    args.outputContext.scale( -1, 1 );
-    w = -w;
+  if ( params.input.rotate != 0 ) {
+    rotate(
+      args.canvas,
+      args.canvas,
+      args.context,
+      params.input.rotate
+    )
   }
 
-  // Draw video frame to output canvas context
-  args.outputContext.drawImage( args.inputElement, 0, 0, w, args.outputElement.height )
-
-  // Restore original settings
-  args.outputContext.restore();
+  if ( !!params.input.mirror ) {
+    mirror(
+      args.canvas,
+      args.canvas,
+      args.context
+    );
+  }
 
   // Send output element frame to BlazePose.
-  await args.pose.send( { image: args.outputElement } );
+  await args.pose.send( { image: args.canvas } );
+
+  function rotate( inE, outE, outCtx, angle ) {
+
+    const w = inE.width;
+    const h = inE.height;
+
+    const x = outE.width * 0.5;
+    const y = outE.height * 0.5;
+
+    const angleInRadians = angle * ( Math.PI / 180 );
+
+    // Rotate magic
+    outCtx.translate( x, y );
+    outCtx.rotate( angleInRadians );
+
+    // Draw video frame to output canvas context
+    outCtx.drawImage( inE, - (w * 0.5), - (h * 0.5), w, h );
+    
+    // Revert global changes to context
+    outCtx.rotate( -angleInRadians );
+    outCtx.translate( -x, -y );
+
+  }
+
+  function mirror( inE, outE, outCtx ) {
+
+    let w = outE.width;
+    let h = outE.height;
+
+    // Mirror magic
+    outCtx.scale( -1, 1 );
+    w = -w;
+
+    // Draw video frame to output canvas context
+    outCtx.drawImage( inE, 0, 0, w, h )
+
+    // Revert global changes to context
+    outCtx.scale( -1, 1 );
+
+  }
 
 }
 
@@ -207,14 +256,17 @@ function onResults( results ) {
   // canvasCtx.drawImage(
   //   results.image, 0, 0, canvasElement.width, canvasElement.height );
 
-  canvasCtx.globalCompositeOperation = 'source-over';
-  drawUtils.drawConnectors( canvasCtx, results.poseLandmarks, Pose.POSE_CONNECTIONS,
-    { color: '#aaff00', lineWidth: params.draw.connectorSize } );
-  drawUtils.drawLandmarks( canvasCtx, results.poseLandmarks,
-    { color: '#ff0000', lineWidth: params.draw.landmarkSize } );
+  // Draw connectors and landmarks
+
+  if ( params.draw.landmarks ) {
+    canvasCtx.globalCompositeOperation = 'source-over';
+    drawUtils.drawConnectors( canvasCtx, results.poseLandmarks, Pose.POSE_CONNECTIONS,
+      { color: '#aaff00', lineWidth: params.draw.connectorSize } );
+    drawUtils.drawLandmarks( canvasCtx, results.poseLandmarks,
+      { color: '#ff0000', lineWidth: params.draw.landmarkSize } );
+  }
 
   canvasCtx.restore();
-
 
   // Send OSC through the function named as a string in params.
   if ( params.osc.enable && ( ( Date.now() - timer ) > ( 1000 / params.osc.msgsPerSecond ) ) ) {
@@ -224,19 +276,14 @@ function onResults( results ) {
 
   }
 
-  // if (osc.status() === osc.STATUS.IS_OPEN) {
-  //   osc.send( 'test', JSON.stringify( results.landmarks ) );
-  // }
-
-  // if ( Date.now() - timer > 5000) {
-  //   timer = Date.now();
-  //   console.log( results.poseLandmarks );
-  // }
-
   stats.end();
 }
 
-// Gets stream from source, sets it to element.
+// Input
+
+/**
+ * Gets stream from source, sets it to element.
+ * */
 async function getStream( sourceId, element ) {
   if ( window.stream ) {
     window.stream.getTracks().forEach( track => {
@@ -273,13 +320,16 @@ async function getDevices( sources ) {
   }
 }
 
+// Generate
+
 function generateGUI( params ) {
 
   let gui = new dat.GUI();
 
   let folderSrc = gui.addFolder( 'Input' );
   folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, videoElement ) );
-  folderSrc.add( params.input, 'mirror' ).onChange( ( val ) => videoElement.style.transform = val ? 'scale( -1, 1 )' : 'scale( 1, 1 )' )
+  folderSrc.add( params.input, 'mirror' );
+  folderSrc.add( params.input, 'rotate', 0, 270 ).step( 90 );
   // folderSrc.add( params.input, 'audio' );
 
   let folderPose = gui.addFolder( 'Pose' );
@@ -328,6 +378,8 @@ function generateAudioElement( pathToAudioFile ) {
 
 }
 
+// Interaction
+
 function onKeyPress( event ) {
 
   switch ( event.key ) {
@@ -358,6 +410,8 @@ function onKeyPress( event ) {
       break;
   }
 }
+
+// OSC
 
 /**
  * Generates and returns an OSC instance
