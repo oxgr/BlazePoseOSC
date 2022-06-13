@@ -41,27 +41,27 @@ const params = {
     send_format: 'sendPosesJSON',
     host: 'localhost',
     port: '9527',
-    frequency: 60,
+    msgsPerSecond: 30,
   }
 }
 
 const keypointNames = [
   'nose',
-  'left_eye_inner',   'left_eye',   'left_eye_outer',
-  'right_eye_inner',  'right_eye',  'right_eye_outer',
-  'left_ear',         'right_ear',
-  'mouth_left',       'mouth-right',
-  'left_shoulder',    'right_shoulder',
-  'left_elbow',       'right_elbow',
-  'left_wrist',       'right_wrist',
-  'left_pinky',       'right_pinky',
-  'left_index',       'right_index',
-  'left_thumb',       'right_thumb',
-  'left_hip',         'right_hip',
-  'left_knee',        'right_knee',
-  'left_ankle',       'right_ankle',
-  'left_heel',        'right_heel',
-  'left_foot_index',  'right_foot_index'
+  'left_eye_inner', 'left_eye', 'left_eye_outer',
+  'right_eye_inner', 'right_eye', 'right_eye_outer',
+  'left_ear', 'right_ear',
+  'mouth_left', 'mouth-right',
+  'left_shoulder', 'right_shoulder',
+  'left_elbow', 'right_elbow',
+  'left_wrist', 'right_wrist',
+  'left_pinky', 'right_pinky',
+  'left_index', 'right_index',
+  'left_thumb', 'right_thumb',
+  'left_hip', 'right_hip',
+  'left_knee', 'right_knee',
+  'left_ankle', 'right_ankle',
+  'left_heel', 'right_heel',
+  'left_foot_index', 'right_foot_index'
 ]
 
 // Settings
@@ -90,8 +90,8 @@ generateAudioElement( `${__dirname}/silent.mp3` );
 // GUI
 
 getStream( params.input.source, videoElement )
-.then( getDevices( params.input.availableSources.video ) )
-.then( generateGUI( params ) );
+  .then( getDevices( params.input.availableSources.video ) )
+  .then( generateGUI( params ) );
 
 // Stats
 
@@ -103,7 +103,7 @@ document.body.appendChild( stats.dom );
 
 const pose = new Pose.Pose( {
   locateFile: ( file ) => {
-    return `${__dirname}/node_modules/@mediapipe/pose/${file}`; ;
+    return `${__dirname}/node_modules/@mediapipe/pose/${file}`;
   }
 } );
 
@@ -115,9 +115,6 @@ pose.onResults( onResults );
 var [ w, h ] = [ 0, 0 ];
 
 videoElement.onloadeddata = function () {
-
-  // if ( params.source.mirror ) videoElement.style.transform = 'rotateY( 180deg )';
-  
 
   [ w, h ] = [ videoElement.videoWidth, videoElement.videoHeight ];
 
@@ -132,40 +129,73 @@ videoElement.onloadeddata = function () {
 
 }
 
+main( params );
 
+function main( params ) {
 
-const camera = new Camera( videoElement, {
-  onFrame: async () => {
-    videoCanvasCtx.clearRect( 0, 0, canvasElement.width, canvasElement.height );
-    videoCanvasCtx.drawImage( videoElement, 100, 0, 0, 100 )
-    await pose.send( { image: videoCanvasElement } );
-  },
-  width: w,
-  height: h
-} );
+  const camera = new Camera( videoElement, {
+    onFrame: onFrame,
+    width: w,
+    height: h
+  } );
 
-camera.start();
+  camera.start();
 
-// Tests
-  
-// var net = undefined;
-// var testImage = undefined;
-// var testImageUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Rembrandt_-_The_Anatomy_Lesson_of_Dr_Nicolaes_Tulp.jpg/637px-Rembrandt_-_The_Anatomy_Lesson_of_Dr_Nicolaes_Tulp.jpg";
-// var frameCount = 0;
+}
+
+async function onFrame() {
+
+  // Settings args because @mediapipe/camera_utils returns a specific to onFrame and can't take a function with custom ones.
+  // Even though this args takes globals, this is here so refactoring to a pure function is easier in the future if we don't use @mediapipe/camera_utils.
+  const args = {
+    inputElement: videoElement,
+    outputElement: videoCanvasElement,
+    outputContext: videoCanvasCtx,
+    pose: pose
+  }
+
+  let w = args.outputElement.width;
+
+  // Save context settings
+  args.outputContext.save();
+
+  // If mirroring, reverse scale and width
+  if ( !!params.input.mirror ) {
+    args.outputContext.scale( -1, 1 );
+    w = -w;
+  }
+
+  // Draw video frame to output canvas context
+  args.outputContext.drawImage( args.inputElement, 0, 0, w, args.outputElement.height )
+
+  // Restore original settings
+  args.outputContext.restore();
+
+  // Send output element frame to BlazePose.
+  await args.pose.send( { image: args.outputElement } );
+
+}
 
 function onResults( results ) {
 
-  if ( results.poseLandmarks == null ) return;
-
   stats.begin();
 
-  canvasCtx.save();
+  // Clear rect first so the old landmarks are gone if new results are null.
   canvasCtx.clearRect( 0, 0, canvasElement.width, canvasElement.height );
+
+  if ( results.poseLandmarks == null ) {
+    stats.end();
+    return;
+  }
+
+  canvasCtx.save();
 
   if ( params.draw.segmentationMask ) {
     canvasCtx.drawImage( results.segmentationMask, 0, 0,
       canvasElement.width, canvasElement.height );
   }
+
+  // Some code from example that draws a mask. Don't really understand what it's doing.
 
   // Only overwrite existing pixels.
   // canvasCtx.globalCompositeOperation = 'source-in';
@@ -182,18 +212,17 @@ function onResults( results ) {
     { color: '#aaff00', lineWidth: params.draw.connectorSize } );
   drawUtils.drawLandmarks( canvasCtx, results.poseLandmarks,
     { color: '#ff0000', lineWidth: params.draw.landmarkSize } );
+
   canvasCtx.restore();
 
 
   // Send OSC through the function named as a string in params.
-  if ( params.osc.enable && ( ( Date.now() - timer ) > ( 1000 / params.osc.frequency ) ) ) {
-    
+  if ( params.osc.enable && ( ( Date.now() - timer ) > ( 1000 / params.osc.msgsPerSecond ) ) ) {
+
     window[ params.osc.send_format ]( results );
     timer = Date.now();
 
   }
-
-
 
   // if (osc.status() === osc.STATUS.IS_OPEN) {
   //   osc.send( 'test', JSON.stringify( results.landmarks ) );
@@ -209,21 +238,21 @@ function onResults( results ) {
 
 // Gets stream from source, sets it to element.
 async function getStream( sourceId, element ) {
-  if (window.stream) {
-    window.stream.getTracks().forEach(track => {
+  if ( window.stream ) {
+    window.stream.getTracks().forEach( track => {
       track.stop();
-    });
+    } );
   }
 
   const constraints = {
-    video: {deviceId: sourceId ? {exact: sourceId} : undefined}
+    video: { deviceId: sourceId ? { exact: sourceId } : undefined }
   };
 
   try {
 
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    const stream = await navigator.mediaDevices.getUserMedia( constraints );
     element.srcObject = stream;
-    
+
   } catch ( err ) {
 
     console.error( err );
@@ -237,8 +266,8 @@ async function getDevices( sources ) {
   // AFAICT in Safari this only gets default devices until gUM is called :/
   const deviceInfos = await navigator.mediaDevices.enumerateDevices();
 
-  for (const deviceInfo of deviceInfos) {
-    if (deviceInfo.kind === 'videoinput') {
+  for ( const deviceInfo of deviceInfos ) {
+    if ( deviceInfo.kind === 'videoinput' ) {
       sources[ deviceInfo.label ] = deviceInfo.deviceId;
     }
   }
@@ -249,16 +278,20 @@ function generateGUI( params ) {
   let gui = new dat.GUI();
 
   let folderSrc = gui.addFolder( 'Input' );
-  folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, videoElement) );
+  folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, videoElement ) );
   folderSrc.add( params.input, 'mirror' ).onChange( ( val ) => videoElement.style.transform = val ? 'scale( -1, 1 )' : 'scale( 1, 1 )' )
   // folderSrc.add( params.input, 'audio' );
 
   let folderPose = gui.addFolder( 'Pose' );
-  folderPose.add( params.pose.options, 'minDetectionConfidence', 0, 1 ).step( 0.01 ).onChange( () => pose.setOptions( params.pose.options ) )
+  // { lite: 0, full: 1, heavy: 2 }
+  folderPose.add( params.pose.options, 'modelComplexity', 0, 2 ).step( 1 ).onChange( () => pose.setOptions( params.pose.options ) );
+  folderPose.add( params.pose.options, 'minDetectionConfidence', 0, 1 ).step( 0.01 ).onChange( () => pose.setOptions( params.pose.options ) );
+  folderPose.add( params.pose.options, 'minTrackingConfidence', 0, 1 ).step( 0.01 ).onChange( () => pose.setOptions( params.pose.options ) );
+  // folderPose.add( params.pose.options, 'minDetectionConfidence', 0, 1 ).step( 0.01 ).onChange( () => pose.setOptions( params.pose.options ) );
 
   let folderDraw = gui.addFolder( 'Draw' );
   folderDraw.add( params.draw, 'segmentationMask' )
-  folderDraw.add( params.draw, 'landmarkSize' , 0, 10 ).step( 1 );
+  folderDraw.add( params.draw, 'landmarkSize', 0, 10 ).step( 1 );
   folderDraw.add( params.draw, 'connectorSize', 0, 10 ).step( 1 );
 
   let folderOsc = gui.addFolder( 'OSC' );
@@ -271,7 +304,7 @@ function generateGUI( params ) {
   } )
   folderOsc.add( params.osc, 'host' )
   folderOsc.add( params.osc, 'port' )
-  folderOsc.add( params.osc, 'frequency', 1, 60 ).step( 1 );
+  folderOsc.add( params.osc, 'msgsPerSecond', 1, 60 ).step( 1 );
 
 }
 
@@ -295,17 +328,18 @@ function generateAudioElement( pathToAudioFile ) {
 
 }
 
-function onKeyPress ( event ) {
+function onKeyPress( event ) {
 
   switch ( event.key ) {
-    
+
     // C for console.log
     case 'c':
       console.log( {
         videoElement: videoElement,
         drawUtils, drawUtils,
         camera: camera,
-        CameraImport: Camera
+        CameraImport: Camera,
+        pose: pose
       } );
       break;
 
@@ -315,10 +349,10 @@ function onKeyPress ( event ) {
       stats.dom.style.display = params.global.showStats ? "block" : "none";
       // logDOM.style.display = showStats ? "block" : "none";
       break;
-    
+
     case 'r':
-      window.open( './blazepose-recorder.html', target="_self");
-      
+      window.open( './blazepose-recorder.html', target = "_self" );
+
     case 'x':
       ipcRenderer.send( 'float' );
       break;
