@@ -8,7 +8,7 @@ const { Camera } = require( '@mediapipe/camera_utils' );
 const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' )
 //const mediaStream = require('media-stream-library');
 //const MjpegCamera = require('mjpeg-camera');
-const { pipelines } = window.mediaStreamLibrary
+const { pipelines,isRtcpBye } = window.mediaStreamLibrary
 
 let timer = Date.now();
 
@@ -155,7 +155,7 @@ async function startIpStream (){
   await authorize()
   pipeline = play()
 }
-
+//console.log("Before IP SREam")
 startIpStream()
 
 var [ w, h ] = [ 0, 0 ];
@@ -170,19 +170,26 @@ videoElement.onloadeddata = function () {
   canvasCtx.canvas.height = h;
 
   ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight );
-
+  
+  //console.log("Video elemnt data loaded")
 }
+
+//console.log("before camera,", videoElement)
 
 const camera = new Camera(
   videoElement,
   {
   onFrame: async () => {
+    // canvasCtx.drawImage( videoElement, 0, 0,
+    //   canvasElement.width, canvasElement.height );
+    console.log("Camera onFrame started");
     await pose.send( { image: videoElement } );
   },
   width: w,
   height: h
 } );
 
+// camera.start()
 
 // Tests
   
@@ -195,7 +202,11 @@ const camera = new Camera(
 
 function onResults( results ) {
 
+  console.log("just entred on result");
+
   if ( results.poseLandmarks == null ) return;
+
+  console.log("found some results");
 
   stats.begin();
 
@@ -339,7 +350,8 @@ function onKeyPress ( event ) {
     case 'l':
       console.log( {
         videoElement: videoElement,
-        drawUtils, drawUtils
+        drawUtils, drawUtils,
+        camera: camera
       } );
       break;
 
