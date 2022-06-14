@@ -64,11 +64,17 @@ function init() {
 
   model.html = {};
 
+  //// Inputs
   model.html.videoElement = document.getElementById( 'input_video' );
   model.html.videoCanvasElement = document.getElementById( 'input_video_canvas' );
   model.html.videoCanvasCtx = model.html.videoCanvasElement.getContext( '2d' );
+
+  //// Outputs
   model.html.canvasElement = document.getElementById( 'output_canvas' );
   model.html.canvasCtx = model.html.canvasElement.getContext( '2d' );
+
+  model.html.logElement = document.getElementById( 'log' );
+  model.html.logElement.innerHTML = `Loading...`;
 
   model.html.videoElement.onloadeddata = function () {
 
@@ -118,7 +124,7 @@ function init() {
   // GUI
   (async () => {
     await getStream( model.params.input.source, model.html.videoElement );
-    await getDevices( model.params.input.availableSources.video );
+    model.params.input.availableSources.video = await getDevices();
     generateGUI( model.params );
   })()
 
@@ -208,6 +214,8 @@ function init() {
 
 async function loop() {
 
+  model.stats.begin();
+
   // Settings args because @mediapipe/camera_utils returns a specific to onFrame and can't take a function with custom ones.
   // Even though this args takes globals, it's here so refactoring to a pure function is easier in the future if we don't use @mediapipe/camera_utils.
   const args = {
@@ -246,9 +254,16 @@ async function loop() {
   }
 
   // Send output element frame to BlazePose.
-  await args.pose.send( { image: args.canvas } );
+  await args.pose.send( { image: args.canvas } )
+
+  // Log info to HTML DOM Element
+  model.html.logElement.innerHTML = generateLogContent( model );
 
   requestAnimationFrame( loop );
+
+  model.stats.end();
+
+  //
 
   function rotate( inE, outE, outCtx, angle ) {
 
@@ -292,101 +307,14 @@ async function loop() {
 
 }
 
-// async function onFrame() {
-
-//   // Settings args because @mediapipe/camera_utils returns a specific to onFrame and can't take a function with custom ones.
-//   // Even though this args takes globals, it's here so refactoring to a pure function is easier in the future if we don't use @mediapipe/camera_utils.
-//   const args = {
-//     video: model.html.videoElement,
-//     canvas: model.html.videoCanvasElement,
-//     context: model.html.videoCanvasCtx,
-//     pose: model.pose
-//   }
-
-//   args.context.drawImage( args.video, 0, 0, args.canvas.width, args.canvas.height )
-
-//   if ( model.params.input.rotate != 0 ) {
-
-//     // if ( model.params.input.rotate % 180 == 0 ) {
-//     //   args.canvas.width = args.video.width;
-//     //   args.canvas.height = args.video.height;
-//     // } else {
-//     //   args.canvas.width = args.video.height;
-//     //   args.canvas.height = args.video.width;
-//     // }
-
-//     rotate(
-//       args.canvas,
-//       args.canvas,
-//       args.context,
-//       model.params.input.rotate
-//     )
-//   }
-
-//   if ( !!model.params.input.mirror ) {
-//     mirror(
-//       args.canvas,
-//       args.canvas,
-//       args.context
-//     );
-//   }
-
-//   // Send output element frame to BlazePose.
-//   await args.pose.send( { image: args.canvas } );
-
-//   function rotate( inE, outE, outCtx, angle ) {
-
-//     const w = inE.width;
-//     const h = inE.height;
-
-//     const x = outE.width * 0.5;
-//     const y = outE.height * 0.5;
-
-//     const angleInRadians = angle * ( Math.PI / 180 );
-
-//     // Rotate magic
-//     outCtx.translate( x, y );
-//     outCtx.rotate( angleInRadians );
-
-//     // Draw video frame to output canvas context
-//     outCtx.drawImage( inE, - ( w * 0.5 ), - ( h * 0.5 ), w, h );
-
-//     // Revert global changes to context
-//     outCtx.rotate( -angleInRadians );
-//     outCtx.translate( -x, -y );
-
-//   }
-
-//   function mirror( inE, outE, outCtx ) {
-
-//     let w = outE.width;
-//     let h = outE.height;
-
-//     // Mirror magic
-//     outCtx.scale( -1, 1 );
-//     w = -w;
-
-//     // Draw video frame to output canvas context
-//     outCtx.drawImage( inE, 0, 0, w, h )
-
-//     // Revert global changes to context
-//     outCtx.scale( -1, 1 );
-
-//   }
-
-// }
-
 function onResults( results ) {
 
-  model.stats.begin();
+  model.poseResults = results;
 
   // Clear rect first so the old landmarks are gone if new results are null.
   model.html.canvasCtx.clearRect( 0, 0, model.html.canvasElement.width, model.html.canvasElement.height );
 
-  if ( results.poseLandmarks == null ) {
-    model.stats.end();
-    return;
-  }
+  if ( results.poseLandmarks == null ) return;
 
   model.html.canvasCtx.save();
 
@@ -428,7 +356,6 @@ function onResults( results ) {
 
   }
 
-  model.stats.end();
 }
 
 // Input
@@ -438,9 +365,7 @@ function onResults( results ) {
  * */
 async function getStream( sourceId, element ) {
   if ( window.stream ) {
-    window.stream.getTracks().forEach( track => {
-      track.stop();
-    } );
+    window.stream.getTracks().forEach( track => track.stop() );
   }
 
   const constraints = {
@@ -463,9 +388,11 @@ async function getStream( sourceId, element ) {
 
 }
 
-async function getDevices( sources ) {
+async function getDevices() {
   // AFAICT in Safari this only gets default devices until gUM is called :/
   const deviceInfos = await navigator.mediaDevices.enumerateDevices();
+
+  let sources = {};
 
   for ( const deviceInfo of deviceInfos ) {
     if ( deviceInfo.kind === 'videoinput' ) {
@@ -473,7 +400,7 @@ async function getDevices( sources ) {
     }
   }
 
-  return false;
+  return sources;
 
 }
 
@@ -484,8 +411,7 @@ function generateGUI( params ) {
   let gui = new dat.GUI();
 
   let folderSrc = gui.addFolder( 'Input' );
-  let inputSourceGUI = folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, model.html.videoElement ) ).listen();
-  console.log( inputSourceGUI );
+  folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, model.html.videoElement ) ).listen();
   folderSrc.add( params.input, 'mirror' );
   folderSrc.add( params.input, 'rotate', 0, 270 ).step( 90 );
   // folderSrc.add( params.input, 'audio' );
@@ -536,6 +462,32 @@ function generateAudioElement( pathToAudioFile ) {
 
 }
 
+/**
+ * Composes a string with HTML formatting in order 
+ * 
+ * @returns String to log into HTML DOM.
+ */
+function generateLogContent() {
+
+  let str = ``;
+
+  str += `
+  Pose found:
+  ${ !!model.poseResults.poseLandmarks }
+  
+  Camera dimensions:
+  [${ model.html.videoElement.videoWidth }, ${ model.html.videoElement.videoHeight }]
+  
+  `;
+
+  // Replaces line breaks with HTML line break formatting.
+  let lines = str.split('\n');
+  let log = lines.join('<br>')
+
+  return log;
+
+}
+
 // Interaction
 
 function onKeyPress( event ) {
@@ -549,14 +501,29 @@ function onKeyPress( event ) {
         drawUtils, drawUtils,
         camera: model.camera,
         CameraImport: Camera,
-        pose: model.pose
+        pose: model.pose,
+        results: model.poseResults
       } );
       break;
 
     case 'g':
       dat.GUI.toggleHide();
-      params.global.showStats = !params.global.showStats;
-      model.stats.dom.style.display = params.global.showStats ? "block" : "none";
+      model.params.global.showStats = !model.params.global.showStats;
+      model.stats.dom.style.display = model.params.global.showStats ? "block" : "none";
+      model.html.logElement.style.display = model.params.global.showStats ? "block" : "none";
+      
+      fs.writeFile( 
+        __dirname + "/settings.json",
+        JSON.stringify( model.params, null, 2 ),
+        ( err ) => {
+          if ( err ) {
+            console.error( err )
+          } else {
+            // console.log( 'Parameters saved!' );
+          }
+        }
+      );
+      
       // logDOM.style.display = showStats ? "block" : "none";
       break;
 
@@ -610,6 +577,7 @@ function sendPosesADDR( poses, osc ) {
 }
 
 function sendPosesJSON( poses, osc ) {
+  poses.id = 'Anfang';
   osc.send( new OSC.Message( "/poses/json", JSON.stringify( poses ) ) );
 }
 

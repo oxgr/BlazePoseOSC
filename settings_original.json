@@ -1,0 +1,19 @@
+{
+  "multiplePoses":true,
+  "useTestImage":false,
+  "audioHack":true,
+  "host":"localhost",
+  "port":"9527",
+  "format":"ARR",
+  "poseNetConig":{
+    "architecture": "MobileNetV1",
+    "outputStride": 16,
+    "inputResolution": 257,
+    "multiplier": 0.75
+  },
+  "cameraConfig":{
+    "deviceId":null,
+    "width": null,
+    "height":null
+  }
+}

@@ -44,6 +44,19 @@
       z-index: -2;
       /* transform: scale( -1, 1 ); */
     }
+
+    #log {
+
+      font-family: 'Courier New', Courier, monospace;
+      font-size: medium;
+      color: white;
+      background-color: rgba( 0, 0, 0, 0.5 );
+      position: absolute;
+      top: 60px;
+      left: 10px;
+      padding: 10px;
+
+    }
   </style>
 </head>
 
@@ -55,6 +68,7 @@
     <canvas id="input_video_canvas"></canvas>
     <!-- <video id="camera" autoplay> </video> -->
     <canvas id="output_canvas"></canvas>
+    <div id="log"></div>
   </div>
 
   <script src="./app.js"></script>
