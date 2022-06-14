@@ -25,6 +25,7 @@
       }
         
       #input_video,
+      #input_video_canvas,
       #output_canvas {
 
         width: 100%;
@@ -35,12 +36,13 @@
 
       }
 
-      /* #output_canvas {
+      #input_video_canvas {
         z-index: -1;
-      } */
+      }
 
-      #camera {
-        z-index: -1;
+      #input_video {
+        z-index: -2;
+        /* transform: scale( -1, 1 ); */
       }
 
     </style>
@@ -49,10 +51,8 @@
     
 
     <div class="container">
-      
-      <video id="input_video" autoplay muted></video>
-      <!-- <video id ="IP_stream"></video> -->
-
+      <video id="input_video" autoplay muted hidden="hidden"></video>
+      <canvas id="input_video_canvas"></canvas>
       <!-- <video id="camera" autoplay> </video> -->
       <canvas id="output_canvas"></canvas>
     </div>

@@ -41,7 +41,8 @@
       "index.html",
       "main.js",
       "preload.js",
-      "settings.json"
+      "settings.json",
+      "silent.mp3"
     ],
     "dmg": {
       "background": null,
