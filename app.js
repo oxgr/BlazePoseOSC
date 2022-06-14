@@ -69,7 +69,7 @@ openOSC( osc )
 // HTML
 
 document.body.addEventListener( "keypress", onKeyPress )
-const videoElement = document.getElementById( 'input_video' );
+const videoElement = document.getElementById('input_video');
 const canvasElement = document.getElementById( 'output_canvas' );
 const canvasCtx = canvasElement.getContext( '2d' );
 
@@ -123,12 +123,12 @@ const authorize = async (host = '192.168.0.200') => {
   }
 }
 
-const play = (host='192.168.0.200' , encoding = 'h264')=> {
+const play = (host='192.168.0.200' , encoding = 'jpeg')=> {
 
-  let mediaElement = videoElement
+  let mediaElement = canvasElement
 
   // Setup a new pipeline
-  const pipeline = new pipelines.Html5VideoPipeline({
+  const pipeline = new pipelines.Html5CanvasPipeline({
     ws: { uri: `ws://${host}/rtsp-over-websocket` },
     rtsp: { uri: `rtsp://${host}/axis-media/media.amp?videocodec=${encoding}` },
     mediaElement,
