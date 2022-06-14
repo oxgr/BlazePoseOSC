@@ -12,9 +12,11 @@ const { pipelines, isRtcpBye } = window.mediaStreamLibrary
 
 const model = {};
 
-main( model );
+init();
+loop();
 
-function main( model ) {
+
+function init() {
 
   // Settings
 
@@ -114,10 +116,11 @@ function main( model ) {
   generateAudioElement( `${__dirname}/silent.mp3` );
 
   // GUI
-
-  getStream( model.params.input.source, model.html.videoElement )
-    .then( getDevices( model.params.input.availableSources.video ) )
-    .then( generateGUI( model.params ) );
+  (async () => {
+    await getStream( model.params.input.source, model.html.videoElement );
+    await getDevices( model.params.input.availableSources.video );
+    generateGUI( model.params );
+  })()
 
   // Stats
 
@@ -140,71 +143,70 @@ function main( model ) {
   
 
 
-    const authorize= async ( host = '192.168.0.200' ) => {
-      // Force a login by fetching usergroup
-      const fetchOptions = {
-        credentials: 'include',
-        headers: {
-          'Axis-Orig-Sw': true,
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        mode: 'no-cors',
-      }
-      try {
-        await window.fetch( `http://${host}/axis-cgi/usergroup.cgi`, fetchOptions )
-      } catch ( err ) {
-        console.error( err )
-      }
-    }
+  //   const authorize= async ( host = '192.168.0.200' ) => {
+  //     // Force a login by fetching usergroup
+  //     const fetchOptions = {
+  //       credentials: 'include',
+  //       headers: {
+  //         'Axis-Orig-Sw': true,
+  //         'X-Requested-With': 'XMLHttpRequest',
+  //       },
+  //       mode: 'no-cors',
+  //     }
+  //     try {
+  //       await window.fetch( `http://${host}/axis-cgi/usergroup.cgi`, fetchOptions )
+  //     } catch ( err ) {
+  //       console.error( err )
+  //     }
+  //   }
 
-  const play = ( host = '192.168.0.200', encoding = 'jpeg' ) => {
+  // const play = ( host = '192.168.0.200', encoding = 'jpeg' ) => {
 
-    let mediaElement = model.html.videoCanvasElement;
+  //   let mediaElement = model.html.videoCanvasElement;
 
-    // Setup a new pipeline
-    const pipeline = new pipelines.Html5CanvasPipeline( {
-      ws: { uri: `ws://${host}/rtsp-over-websocket` },
-      rtsp: { uri: `rtsp://${host}/axis-media/media.amp?videocodec=${encoding}` },
-      mediaElement,
-    } )
+  //   // Setup a new pipeline
+  //   const pipeline = new pipelines.Html5CanvasPipeline( {
+  //     ws: { uri: `ws://${host}/rtsp-over-websocket` },
+  //     rtsp: { uri: `rtsp://${host}/axis-media/media.amp?videocodec=${encoding}` },
+  //     mediaElement,
+  //   } )
 
-    // Restart stream on RTCP BYE (stream ended)
-    pipeline.rtsp.onRtcp = ( rtcp ) => {
-      if ( isRtcpBye( rtcp ) ) {
-        setTimeout( () => play( host, encoding ), 0 )
-      }
-    }
+  //   // Restart stream on RTCP BYE (stream ended)
+  //   pipeline.rtsp.onRtcp = ( rtcp ) => {
+  //     if ( isRtcpBye( rtcp ) ) {
+  //       setTimeout( () => play( host, encoding ), 0 )
+  //     }
+  //   }
 
-    pipeline.ready.then( () => {
-      pipeline.rtsp.play()
-    } )
+  //   pipeline.ready.then( () => {
+  //     pipeline.rtsp.play()
+  //   } )
 
-    return pipeline
-  }
+  //   return pipeline
+  // }
 
-  let pipeline;
+  // let pipeline;
 
-  async function startIpStream() {
-    pipeline && pipeline.close()
-    await authorize()
-    pipeline = play()
-  }
+  // async function startIpStream() {
+  //   pipeline && pipeline.close()
+  //   await authorize()
+  //   pipeline = play()
+  // }
 
-  startIpStream()
+  // startIpStream()
 
-  model.camera = new Camera( model.html.videoCanvasElement, {
-    onFrame: onFrame,
-    width: model.html.videoElement.videoWidth,
-    height: model.html.videoElement.videoHeight
-  } );
+  // model.camera = new Camera( model.html.videoCanvasElement, {
+  //   onFrame: onFrame,
+  //   width: model.html.videoElement.videoWidth,
+  //   height: model.html.videoElement.videoHeight
+  // } );
 
-
-  model.camera.start();
+  // model.camera.start();
 }
 
-// Pose I/O
+// Loop
 
-async function onFrame() {
+async function loop() {
 
   // Settings args because @mediapipe/camera_utils returns a specific to onFrame and can't take a function with custom ones.
   // Even though this args takes globals, it's here so refactoring to a pure function is easier in the future if we don't use @mediapipe/camera_utils.
@@ -245,6 +247,8 @@ async function onFrame() {
 
   // Send output element frame to BlazePose.
   await args.pose.send( { image: args.canvas } );
+
+  requestAnimationFrame( loop );
 
   function rotate( inE, outE, outCtx, angle ) {
 
@@ -287,6 +291,90 @@ async function onFrame() {
   }
 
 }
+
+// async function onFrame() {
+
+//   // Settings args because @mediapipe/camera_utils returns a specific to onFrame and can't take a function with custom ones.
+//   // Even though this args takes globals, it's here so refactoring to a pure function is easier in the future if we don't use @mediapipe/camera_utils.
+//   const args = {
+//     video: model.html.videoElement,
+//     canvas: model.html.videoCanvasElement,
+//     context: model.html.videoCanvasCtx,
+//     pose: model.pose
+//   }
+
+//   args.context.drawImage( args.video, 0, 0, args.canvas.width, args.canvas.height )
+
+//   if ( model.params.input.rotate != 0 ) {
+
+//     // if ( model.params.input.rotate % 180 == 0 ) {
+//     //   args.canvas.width = args.video.width;
+//     //   args.canvas.height = args.video.height;
+//     // } else {
+//     //   args.canvas.width = args.video.height;
+//     //   args.canvas.height = args.video.width;
+//     // }
+
+//     rotate(
+//       args.canvas,
+//       args.canvas,
+//       args.context,
+//       model.params.input.rotate
+//     )
+//   }
+
+//   if ( !!model.params.input.mirror ) {
+//     mirror(
+//       args.canvas,
+//       args.canvas,
+//       args.context
+//     );
+//   }
+
+//   // Send output element frame to BlazePose.
+//   await args.pose.send( { image: args.canvas } );
+
+//   function rotate( inE, outE, outCtx, angle ) {
+
+//     const w = inE.width;
+//     const h = inE.height;
+
+//     const x = outE.width * 0.5;
+//     const y = outE.height * 0.5;
+
+//     const angleInRadians = angle * ( Math.PI / 180 );
+
+//     // Rotate magic
+//     outCtx.translate( x, y );
+//     outCtx.rotate( angleInRadians );
+
+//     // Draw video frame to output canvas context
+//     outCtx.drawImage( inE, - ( w * 0.5 ), - ( h * 0.5 ), w, h );
+
+//     // Revert global changes to context
+//     outCtx.rotate( -angleInRadians );
+//     outCtx.translate( -x, -y );
+
+//   }
+
+//   function mirror( inE, outE, outCtx ) {
+
+//     let w = outE.width;
+//     let h = outE.height;
+
+//     // Mirror magic
+//     outCtx.scale( -1, 1 );
+//     w = -w;
+
+//     // Draw video frame to output canvas context
+//     outCtx.drawImage( inE, 0, 0, w, h )
+
+//     // Revert global changes to context
+//     outCtx.scale( -1, 1 );
+
+//   }
+
+// }
 
 function onResults( results ) {
 
@@ -371,6 +459,8 @@ async function getStream( sourceId, element ) {
 
   }
 
+  return false;
+
 }
 
 async function getDevices( sources ) {
@@ -383,7 +473,8 @@ async function getDevices( sources ) {
     }
   }
 
-  //sources["IP_Camera"]
+  return false;
+
 }
 
 // Generate
@@ -393,7 +484,8 @@ function generateGUI( params ) {
   let gui = new dat.GUI();
 
   let folderSrc = gui.addFolder( 'Input' );
-  folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, model.html.videoElement ) );
+  let inputSourceGUI = folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, model.html.videoElement ) ).listen();
+  console.log( inputSourceGUI );
   folderSrc.add( params.input, 'mirror' );
   folderSrc.add( params.input, 'rotate', 0, 270 ).step( 90 );
   // folderSrc.add( params.input, 'audio' );
@@ -453,7 +545,7 @@ function onKeyPress( event ) {
     // C for console.log
     case 'c':
       console.log( {
-        videoElement: model.html.videoElement,
+        model: model,
         drawUtils, drawUtils,
         camera: model.camera,
         CameraImport: Camera,
