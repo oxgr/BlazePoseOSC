@@ -8,7 +8,7 @@ const { Camera } = require( '@mediapipe/camera_utils' );
 const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' )
 //const mediaStream = require('media-stream-library');
 //const MjpegCamera = require('mjpeg-camera');
-const { pipelines,isRtcpBye } = window.mediaStreamLibrary
+const { pipelines, isRtcpBye } = window.mediaStreamLibrary
 
 const model = {};
 
@@ -67,21 +67,21 @@ function main( model ) {
   model.html.videoCanvasCtx = model.html.videoCanvasElement.getContext( '2d' );
   model.html.canvasElement = document.getElementById( 'output_canvas' );
   model.html.canvasCtx = model.html.canvasElement.getContext( '2d' );
-  
+
   model.html.videoElement.onloadeddata = function () {
 
     const w = model.html.videoElement.videoWidth
     const h = model.html.videoElement.videoHeight;
-  
+
     console.log( "camera dimensions", w, h );
-  
+
     model.html.videoCanvasCtx.canvas.width = w;
     model.html.videoCanvasCtx.canvas.height = h;
     model.html.canvasCtx.canvas.width = w;
     model.html.canvasCtx.canvas.height = h;
-  
+
     ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
-  
+
   }
 
   document.body.addEventListener( "keypress", onKeyPress );
@@ -116,8 +116,8 @@ function main( model ) {
   // GUI
 
   getStream( model.params.input.source, model.html.videoElement )
-  .then( getDevices( model.params.input.availableSources.video ) )
-  .then( generateGUI( model.params ) );
+    .then( getDevices( model.params.input.availableSources.video ) )
+    .then( generateGUI( model.params ) );
 
   // Stats
 
@@ -138,75 +138,73 @@ function main( model ) {
 
   // Camera  
   
-  
-  <<<<<<< feature_axisCamera
 
-  
-const authorize = async (host = '192.168.0.200') => {
-  // Force a login by fetching usergroup
-  const fetchOptions = {
-    credentials: 'include',
-    headers: {
-      'Axis-Orig-Sw': true,
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-    mode: 'no-cors',
-  }
-  try {
-    await window.fetch(`http://${host}/axis-cgi/usergroup.cgi`, fetchOptions)
-  } catch (err) {
-    console.error(err)
-  }
-}
 
-const play = (host='192.168.0.200' , encoding = 'jpeg')=> {
-
-  let mediaElement = model.html.videoCanvasElement;
-
-  // Setup a new pipeline
-  const pipeline = new pipelines.Html5CanvasPipeline({
-    ws: { uri: `ws://${host}/rtsp-over-websocket` },
-    rtsp: { uri: `rtsp://${host}/axis-media/media.amp?videocodec=${encoding}` },
-    mediaElement,
-  })
-
-  // Restart stream on RTCP BYE (stream ended)
-  pipeline.rtsp.onRtcp = (rtcp) => {
-    if (isRtcpBye(rtcp)) {
-      setTimeout(() => play(host, encoding), 0)
+    const authorize= async ( host = '192.168.0.200' ) => {
+      // Force a login by fetching usergroup
+      const fetchOptions = {
+        credentials: 'include',
+        headers: {
+          'Axis-Orig-Sw': true,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        mode: 'no-cors',
+      }
+      try {
+        await window.fetch( `http://${host}/axis-cgi/usergroup.cgi`, fetchOptions )
+      } catch ( err ) {
+        console.error( err )
+      }
     }
+
+  const play = ( host = '192.168.0.200', encoding = 'jpeg' ) => {
+
+    let mediaElement = model.html.videoCanvasElement;
+
+    // Setup a new pipeline
+    const pipeline = new pipelines.Html5CanvasPipeline( {
+      ws: { uri: `ws://${host}/rtsp-over-websocket` },
+      rtsp: { uri: `rtsp://${host}/axis-media/media.amp?videocodec=${encoding}` },
+      mediaElement,
+    } )
+
+    // Restart stream on RTCP BYE (stream ended)
+    pipeline.rtsp.onRtcp = ( rtcp ) => {
+      if ( isRtcpBye( rtcp ) ) {
+        setTimeout( () => play( host, encoding ), 0 )
+      }
+    }
+
+    pipeline.ready.then( () => {
+      pipeline.rtsp.play()
+    } )
+
+    return pipeline
   }
 
-  pipeline.ready.then(() => {
-    pipeline.rtsp.play()
-  })
+  let pipeline;
 
-  return pipeline
-}
+  async function startIpStream() {
+    pipeline && pipeline.close()
+    await authorize()
+    pipeline = play()
+  }
 
-let pipeline;
-
-async function startIpStream (){
-  pipeline && pipeline.close()
-  await authorize()
-  pipeline = play()
-}
-
-startIpStream()
+  startIpStream()
 
   model.camera = new Camera( model.html.videoCanvasElement, {
     onFrame: onFrame,
     width: model.html.videoElement.videoWidth,
     height: model.html.videoElement.videoHeight
   } );
-  
-  
+
+
   model.camera.start();
 }
 
-  // Pose I/O
+// Pose I/O
 
-  async function onFrame() {
+async function onFrame() {
 
   // Settings args because @mediapipe/camera_utils returns a specific to onFrame and can't take a function with custom ones.
   // Even though this args takes globals, it's here so refactoring to a pure function is easier in the future if we don't use @mediapipe/camera_utils.
@@ -253,7 +251,7 @@ startIpStream()
     const w = inE.width;
     const h = inE.height;
 
-    const x = outE.width  * 0.5;
+    const x = outE.width * 0.5;
     const y = outE.height * 0.5;
 
     const angleInRadians = angle * ( Math.PI / 180 );
@@ -263,8 +261,8 @@ startIpStream()
     outCtx.rotate( angleInRadians );
 
     // Draw video frame to output canvas context
-    outCtx.drawImage( inE, - (w * 0.5), - (h * 0.5), w, h );
-    
+    outCtx.drawImage( inE, - ( w * 0.5 ), - ( h * 0.5 ), w, h );
+
     // Revert global changes to context
     outCtx.rotate( -angleInRadians );
     outCtx.translate( -x, -y );
@@ -335,7 +333,7 @@ function onResults( results ) {
 
   // Send OSC messages in the message rate defined in model.params.
   if ( model.params.osc.enable && ( ( Date.now() - model.oscTimer ) > ( 1000 / model.params.osc.msgsPerSecond ) ) ) {
-    
+
     // Send OSC through the function named as a string in model.params.
     window[ model.params.osc.send_format ]( results, model.osc );
     timer = Date.now();
