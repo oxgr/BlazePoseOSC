@@ -6,6 +6,9 @@ const dat = require( 'dat.gui' );
 const Stats = require( 'stats.js' );
 const { Camera } = require( '@mediapipe/camera_utils' );
 const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' )
+//const mediaStream = require('media-stream-library');
+//const MjpegCamera = require('mjpeg-camera');
+const { pipelines,isRtcpBye } = window.mediaStreamLibrary
 
 const model = {};
 
@@ -64,7 +67,7 @@ function main( model ) {
   model.html.videoCanvasCtx = model.html.videoCanvasElement.getContext( '2d' );
   model.html.canvasElement = document.getElementById( 'output_canvas' );
   model.html.canvasCtx = model.html.canvasElement.getContext( '2d' );
-
+  
   model.html.videoElement.onloadeddata = function () {
 
     const w = model.html.videoElement.videoWidth
@@ -134,20 +137,76 @@ function main( model ) {
   model.pose.onResults( onResults );
 
   // Camera  
+  
+  
+  <<<<<<< feature_axisCamera
 
-  model.camera = new Camera( model.html.videoElement, {
+  
+const authorize = async (host = '192.168.0.200') => {
+  // Force a login by fetching usergroup
+  const fetchOptions = {
+    credentials: 'include',
+    headers: {
+      'Axis-Orig-Sw': true,
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    mode: 'no-cors',
+  }
+  try {
+    await window.fetch(`http://${host}/axis-cgi/usergroup.cgi`, fetchOptions)
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+const play = (host='192.168.0.200' , encoding = 'jpeg')=> {
+
+  let mediaElement = model.html.videoCanvasElement;
+
+  // Setup a new pipeline
+  const pipeline = new pipelines.Html5CanvasPipeline({
+    ws: { uri: `ws://${host}/rtsp-over-websocket` },
+    rtsp: { uri: `rtsp://${host}/axis-media/media.amp?videocodec=${encoding}` },
+    mediaElement,
+  })
+
+  // Restart stream on RTCP BYE (stream ended)
+  pipeline.rtsp.onRtcp = (rtcp) => {
+    if (isRtcpBye(rtcp)) {
+      setTimeout(() => play(host, encoding), 0)
+    }
+  }
+
+  pipeline.ready.then(() => {
+    pipeline.rtsp.play()
+  })
+
+  return pipeline
+}
+
+let pipeline;
+
+async function startIpStream (){
+  pipeline && pipeline.close()
+  await authorize()
+  pipeline = play()
+}
+
+startIpStream()
+
+  model.camera = new Camera( model.html.videoCanvasElement, {
     onFrame: onFrame,
     width: model.html.videoElement.videoWidth,
     height: model.html.videoElement.videoHeight
   } );
-
+  
+  
   model.camera.start();
-
 }
 
-// Pose I/O
+  // Pose I/O
 
-async function onFrame() {
+  async function onFrame() {
 
   // Settings args because @mediapipe/camera_utils returns a specific to onFrame and can't take a function with custom ones.
   // Even though this args takes globals, it's here so refactoring to a pure function is easier in the future if we don't use @mediapipe/camera_utils.
@@ -325,6 +384,8 @@ async function getDevices( sources ) {
       sources[ deviceInfo.label ] = deviceInfo.deviceId;
     }
   }
+
+  //sources["IP_Camera"]
 }
 
 // Generate
