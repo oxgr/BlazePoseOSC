@@ -1,3 +1,21 @@
+/**
+ * BlazePoseOSC by Faadhi Fauzi and Amir Rostami
+ * 
+ * Based on PoseOSC by Lingdong Huang
+ * 
+ * 
+ * This is the main file of the app.
+ * The code runs on a familiar setup/draw structure with init() running once and loop() at 60fps or maximum.
+ * 
+ * The model object houses all global variables as its properties.
+ * 
+ * Frame data is sent to the BlazePose model at the end of loop().
+ * Results are processed in onResults().
+ * 
+ * Pressing G shows/hides the GUI and simultaneously saves the parameters to ./settings.json
+ * 
+ */
+
 const fs = require( 'fs' );
 const { ipcRenderer } = require( 'electron' );
 const Pose = require( '@mediapipe/pose/pose.js' )
@@ -304,6 +322,15 @@ async function loop() {
 
 }
 
+/**
+ * Callback function that processes results from BlazePose.
+ * Draws the results onto landmarks and connectors on a canvas,
+ * then sends the landmark coordinates as OSC messages in the format specified in model.params.osc.send_format
+ * 
+ * Returns if there are no landmarks.
+ * 
+ * @param { Object } results Results from BlazePose. 
+ */
 function onResults( results ) {
 
   model.poseResults = results;
@@ -385,6 +412,11 @@ async function getStream( sourceId, element ) {
 
 }
 
+/**
+ * Enumerates through media devices and returns available devices in an object.
+ * 
+ * @returns An object with deviceLabel as keys and deviceId as values.
+ */
 async function getDevices() {
   // AFAICT in Safari this only gets default devices until gUM is called :/
   const deviceInfos = await navigator.mediaDevices.enumerateDevices();
@@ -403,6 +435,11 @@ async function getDevices() {
 
 // Generate
 
+/**
+ * Generate a dat.GUI interface using supplied parameters.
+ * 
+ * @param {Object} params The parameters to use.
+ */
 function generateGUI( params ) {
 
   let gui = new dat.GUI();
@@ -460,15 +497,13 @@ function generateAudioElement( pathToAudioFile ) {
 }
 
 /**
- * Composes a string with HTML formatting in order 
+ * Composes a string with HTML formatting.
  * 
  * @returns String to log into HTML DOM.
  */
 function generateLogContent() {
 
-  let str = ``;
-
-  str += `
+  const str = `
   Pose found:
   ${ !!model.poseResults.poseLandmarks }
   
@@ -479,7 +514,9 @@ function generateLogContent() {
 
   // Replaces line breaks with HTML line break formatting.
   let lines = str.split('\n');
-  let log = lines.join('<br>')
+  lines.splice( 0, 1 );               // And splices the top and bottom line breaks so editing can stay pretty.
+  lines.splice( lines.length -1, 1 );
+  let log = lines.join('<br>');
 
   return log;
 
