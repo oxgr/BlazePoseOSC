@@ -20,8 +20,6 @@ function init() {
 
   // Settings
 
-  model.settings = JSON.parse( fs.readFileSync( __dirname + "/settings.json", "utf8" ) );
-
   model.params = {
     global: {
       showStats: true,
@@ -59,6 +57,8 @@ function init() {
       msgsPerSecond: 30,
     }
   }
+
+  model.params = JSON.parse( fs.readFileSync( __dirname + "/settings.json", "utf8" ) );
 
   // HTML
 
@@ -122,6 +122,7 @@ function init() {
   generateAudioElement( `${__dirname}/silent.mp3` );
 
   // GUI
+  
   (async () => {
     await getStream( model.params.input.source, model.html.videoElement );
     model.params.input.availableSources.video = await getDevices();
@@ -210,8 +211,6 @@ function init() {
   // model.camera.start();
 }
 
-// Loop
-
 async function loop() {
 
   model.stats.begin();
@@ -230,15 +229,14 @@ async function loop() {
   if ( model.params.input.rotate != 0 ) {
 
     // if ( model.params.input.rotate % 180 == 0 ) {
-    //   args.canvas.width = args.video.width;
-    //   args.canvas.height = args.video.height;
+    //   args.canvas.width = args.video.videoWidth;
+    //   args.canvas.height = args.video.videoHeight;
     // } else {
-    //   args.canvas.width = args.video.height;
-    //   args.canvas.height = args.video.width;
+    //   args.canvas.width = args.video.videoWidth;
+    //   args.canvas.height = args.video.videoWidth;
     // }
 
     rotate(
-      args.canvas,
       args.canvas,
       args.context,
       model.params.input.rotate
@@ -247,7 +245,6 @@ async function loop() {
 
   if ( !!model.params.input.mirror ) {
     mirror(
-      args.canvas,
       args.canvas,
       args.context
     );
@@ -265,43 +262,43 @@ async function loop() {
 
   //
 
-  function rotate( inE, outE, outCtx, angle ) {
+  function rotate( element, context, angle ) {
 
-    const w = inE.width;
-    const h = inE.height;
+    const w = element.width;
+    const h = element.height;
 
-    const x = outE.width * 0.5;
-    const y = outE.height * 0.5;
+    const x = element.width * 0.5;
+    const y = element.height * 0.5;
 
     const angleInRadians = angle * ( Math.PI / 180 );
 
     // Rotate magic
-    outCtx.translate( x, y );
-    outCtx.rotate( angleInRadians );
+    context.translate( x, y );
+    context.rotate( angleInRadians );
 
     // Draw video frame to output canvas context
-    outCtx.drawImage( inE, - ( w * 0.5 ), - ( h * 0.5 ), w, h );
+    context.drawImage( element, - ( w * 0.5 ), - ( h * 0.5 ), w, h );
 
     // Revert global changes to context
-    outCtx.rotate( -angleInRadians );
-    outCtx.translate( -x, -y );
+    context.rotate( -angleInRadians );
+    context.translate( -x, -y );
 
   }
 
-  function mirror( inE, outE, outCtx ) {
+  function mirror( element, context ) {
 
-    let w = outE.width;
-    let h = outE.height;
+    let w = element.width;
+    let h = element.height;
 
     // Mirror magic
-    outCtx.scale( -1, 1 );
+    context.scale( -1, 1 );
     w = -w;
 
     // Draw video frame to output canvas context
-    outCtx.drawImage( inE, 0, 0, w, h )
+    context.drawImage( element, 0, 0, w, h )
 
     // Revert global changes to context
-    outCtx.scale( -1, 1 );
+    context.scale( -1, 1 );
 
   }
 
