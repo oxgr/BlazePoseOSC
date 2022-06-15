@@ -17,7 +17,7 @@
  */
 
 const fs = require( 'fs' );
-const { ipcRenderer } = require( 'electron' );
+const { ipcRenderer, remote } = require( 'electron' );
 const Pose = require( '@mediapipe/pose/pose.js' )
 const OSC = require( 'osc-js' );
 const dat = require( 'dat.gui' );
@@ -26,7 +26,7 @@ const { Camera } = require( '@mediapipe/camera_utils' );
 const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' )
 //const mediaStream = require('media-stream-library');
 //const MjpegCamera = require('mjpeg-camera');
-const { pipelines, isRtcpBye } = window.mediaStreamLibrary
+// const { pipelines, isRtcpBye } = window.mediaStreamLibrary
 
 const model = {};
 
@@ -38,45 +38,16 @@ function init() {
 
   // Settings
 
-  model.params = {
-    global: {
-      showStats: true,
-    },
-    input: {
-      source: '',
-      mirror: true,
-      rotate: 0,
-      availableSources: {
-        video: {},
-        audio: {}
-      }
-    },
-    pose: {
-      options: {
-        modelComplexity: 1,
-        smoothLandmarks: true,
-        enableSegmentation: true,
-        smoothSegmentation: true,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-      }
-    },
-    draw: {
-      landmarks: true,
-      segmentationMask: false,
-      landmarkSize: 4,
-      connectorSize: 4,
-    },
-    osc: {
-      enable: true,
-      send_format: 'sendPosesJSON',
-      host: 'localhost',
-      port: '9527',
-      msgsPerSecond: 30,
-    }
-  }
+  const id = remote.getCurrentWebContents().id
+  console.log( `Window ID: ${ id }` );
+  const enableReadSettings = true;
+  const settingsURL = 'settings.json'
 
-  model.params = JSON.parse( fs.readFileSync( __dirname + "/settings.json", "utf8" ) );
+  model.params = loadParams( id, enableReadSettings, settingsURL );
+
+  console.log( model.params );
+
+  model.addWindow = () => ipcRenderer.send( 'addWindow' );
 
   // HTML
 
@@ -140,12 +111,12 @@ function init() {
   generateAudioElement( `${__dirname}/silent.mp3` );
 
   // GUI
-  
-  (async () => {
+
+  ( async () => {
     await getStream( model.params.input.source, model.html.videoElement );
     model.params.input.availableSources.video = await getDevices();
     generateGUI( model.params );
-  })()
+  } )()
 
   // Stats
 
@@ -165,7 +136,7 @@ function init() {
   model.pose.onResults( onResults );
 
   // Camera  
-  
+
 
 
   //   const authorize= async ( host = '192.168.0.200' ) => {
@@ -382,6 +353,76 @@ function onResults( results ) {
 
 }
 
+// Settings
+
+function loadParams( id = 1, enableReadSettings = true, settingsURL = 'settings.json' ) {
+
+  let params = {
+    global: {
+      showStats: true,
+      enableReadSettings: false,
+    },
+    input: {
+      source: '',
+      mirror: true,
+      rotate: 0,
+      availableSources: {
+        video: {},
+        audio: {}
+      }
+    },
+    pose: {
+      options: {
+        modelComplexity: 1,
+        smoothLandmarks: true,
+        enableSegmentation: true,
+        smoothSegmentation: true,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      }
+    },
+    draw: {
+      landmarks: true,
+      segmentationMask: false,
+      landmarkSize: 4,
+      connectorSize: 4,
+    },
+    osc: {
+      enable: true,
+      send_format: 'sendPosesJSON',
+      host: 'localhost',
+      port: '9527',
+      msgsPerSecond: 30,
+    },
+    windowId: id,
+  }
+
+  if ( !enableReadSettings ) return params;
+
+  //
+
+  const settings = fs.readFileSync( __dirname + `/${ settingsURL }`, "utf8" );
+  let settingsArray = [];
+  let index = 0;
+
+  try {
+    settingsArray = JSON.parse( settings );
+    console.log( {settingsArray: settingsArray} );
+  } catch ( e ) {
+    console.log( 'Array is empty.' );
+    return params;
+  }
+
+  const foundElement = settingsArray.find( ( e ) => e.windowId === params.windowId );
+  if ( !foundElement ) 
+    return params;
+    
+  //
+
+  return foundElement;
+
+}
+
 // Input
 
 /**
@@ -393,7 +434,7 @@ async function getStream( sourceId, element ) {
   }
 
   const constraints = {
-    video: { deviceId: sourceId ? { exact: sourceId } : undefined }
+    video: { deviceId: sourceId ? { ideal: sourceId } : undefined }
   };
 
   try {
@@ -444,10 +485,12 @@ function generateGUI( params ) {
 
   let gui = new dat.GUI();
 
+  
   let folderSrc = gui.addFolder( 'Input' );
   folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, model.html.videoElement ) ).listen();
   folderSrc.add( params.input, 'mirror' );
   folderSrc.add( params.input, 'rotate', 0, 270 ).step( 90 );
+  gui.add( model, 'addWindow' ).name( 'Add input' );
   // folderSrc.add( params.input, 'audio' );
 
   let folderPose = gui.addFolder( 'Pose' );
@@ -505,18 +548,18 @@ function generateLogContent() {
 
   const str = `
   Pose found:
-  ${ !!model.poseResults.poseLandmarks }
+  ${!!model.poseResults.poseLandmarks}
   
   Camera dimensions:
-  [${ model.html.videoElement.videoWidth }, ${ model.html.videoElement.videoHeight }]
+  [${model.html.videoElement.videoWidth}, ${model.html.videoElement.videoHeight}]
   
   `;
 
   // Replaces line breaks with HTML line break formatting.
-  let lines = str.split('\n');
+  let lines = str.split( '\n' );
   lines.splice( 0, 1 );               // And splices the top and bottom line breaks so editing can stay pretty.
-  lines.splice( lines.length -1, 1 );
-  let log = lines.join('<br>');
+  lines.splice( lines.length - 1, 1 );
+  let log = lines.join( '<br>' );
 
   return log;
 
@@ -545,10 +588,36 @@ function onKeyPress( event ) {
       model.params.global.showStats = !model.params.global.showStats;
       model.stats.dom.style.display = model.params.global.showStats ? "block" : "none";
       model.html.logElement.style.display = model.params.global.showStats ? "block" : "none";
+
+      const settings = fs.readFileSync( __dirname + "/settings.json", "utf8" );
       
-      fs.writeFile( 
+      let settingsArray = [];
+      let index = 0;
+
+      try {
+        settingsArray = JSON.parse( settings );
+        console.log( {settingsArray: settingsArray} );
+      } catch ( e ) {
+        console.log( 'Cannot parse settings.\nError:', e );
+      }
+        
+      index = settingsArray.findIndex( ( e ) => e.windowId == model.params.windowId );
+
+      // If index is not found, set index to the end of the array
+      if ( index > -1 ) {
+        settingsArray[ index ] = model.params;
+        console.log( 'id found. index is:', index )
+      } else {
+        settingsArray.push( model.params );
+      }
+
+      
+
+      console.log( { beforeWrite: settingsArray } );
+
+      fs.writeFile(
         __dirname + "/settings.json",
-        JSON.stringify( model.params, null, 2 ),
+        JSON.stringify( settingsArray, null, 2 ),
         ( err ) => {
           if ( err ) {
             console.error( err )
@@ -557,14 +626,14 @@ function onKeyPress( event ) {
           }
         }
       );
-      
+
       // logDOM.style.display = showStats ? "block" : "none";
       break;
 
     case 'r':
       window.open( './blazepose-recorder.html', target = "_self" );
 
-    case 'x':
+    case 'f':
       ipcRenderer.send( 'float' );
       break;
   }
