@@ -5,7 +5,8 @@ const OSC = require( 'osc-js' );
 const dat = require( 'dat.gui' );
 const Stats = require( 'stats.js' );
 const { Camera } = require( '@mediapipe/camera_utils' );
-const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' )
+const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' );
+
 //const mediaStream = require('media-stream-library');
 //const MjpegCamera = require('mjpeg-camera');
 const { pipelines, isRtcpBye } = window.mediaStreamLibrary
@@ -28,7 +29,7 @@ function init() {
     },
     input: {
       source: '',
-      mirror: true,
+      mirror: false,
       rotate: 0,
       availableSources: {
         video: {},
@@ -65,15 +66,22 @@ function init() {
   model.html = {};
 
   model.html.videoElement = document.getElementById( 'input_video' );
+  
   model.html.videoCanvasElement = document.getElementById( 'input_video_canvas' );
   model.html.videoCanvasCtx = model.html.videoCanvasElement.getContext( '2d' );
+  
   model.html.canvasElement = document.getElementById( 'output_canvas' );
   model.html.canvasCtx = model.html.canvasElement.getContext( '2d' );
-
+  
+  model.html.canvasBuffer = document.getElementById('BufferCanvas');
+  model.html.canvasBufferCtx = model.html.canvasBuffer.getContext('2d');
+  
   model.html.videoElement.onloadeddata = function () {
 
-    const w = model.html.videoElement.videoWidth
-    const h = model.html.videoElement.videoHeight;
+    let scale = 0.1
+
+    const w = model.html.videoElement.videoWidth; //* scale
+    const h = model.html.videoElement.videoHeight; //* scale;
 
     console.log( "camera dimensions", w, h );
 
@@ -81,6 +89,10 @@ function init() {
     model.html.videoCanvasCtx.canvas.height = h;
     model.html.canvasCtx.canvas.width = w;
     model.html.canvasCtx.canvas.height = h;
+
+
+    model.html.canvasBufferCtx.canvas.width = w * scale;
+    model.html.canvasBufferCtx.canvas.height = h * scale;
 
     ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
 
@@ -116,11 +128,11 @@ function init() {
   generateAudioElement( `${__dirname}/silent.mp3` );
 
   // GUI
-  (async () => {
-    await getStream( model.params.input.source, model.html.videoElement );
-    await getDevices( model.params.input.availableSources.video );
+  // (async () => {
+  //   await getStream( model.params.input.source, model.html.videoElement );
+  //   await getDevices( model.params.input.availableSources.video );
     generateGUI( model.params );
-  })()
+  // })()
 
   // Stats
 
@@ -140,60 +152,57 @@ function init() {
   model.pose.onResults( onResults );
 
   // Camera  
-  
+  const authorize= async ( host = '192.168.0.200' ) => {
+    // Force a login by fetching usergroup
+    const fetchOptions = {
+      credentials: 'include',
+      headers: {
+        'Axis-Orig-Sw': true,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      mode: 'no-cors',
+    }
+    try {
+      await window.fetch( `http://${host}/axis-cgi/usergroup.cgi`, fetchOptions )
+    } catch ( err ) {
+      console.error( err )
+    }
+  }
 
+  const play = ( host = '192.168.0.200', encoding = 'h264' ) => {
 
-  //   const authorize= async ( host = '192.168.0.200' ) => {
-  //     // Force a login by fetching usergroup
-  //     const fetchOptions = {
-  //       credentials: 'include',
-  //       headers: {
-  //         'Axis-Orig-Sw': true,
-  //         'X-Requested-With': 'XMLHttpRequest',
-  //       },
-  //       mode: 'no-cors',
-  //     }
-  //     try {
-  //       await window.fetch( `http://${host}/axis-cgi/usergroup.cgi`, fetchOptions )
-  //     } catch ( err ) {
-  //       console.error( err )
-  //     }
-  //   }
+    let mediaElement = model.html.videoElement;
 
-  // const play = ( host = '192.168.0.200', encoding = 'jpeg' ) => {
+    // Setup a new pipeline
+    const pipeline = new pipelines.Html5VideoPipeline( {
+      ws: { uri: `ws://${host}/rtsp-over-websocket` },
+      rtsp: { uri: `rtsp://${host}/axis-media/media.amp?videocodec=${encoding}` },
+      mediaElement,
+    } )
 
-  //   let mediaElement = model.html.videoCanvasElement;
+    // Restart stream on RTCP BYE (stream ended)
+    pipeline.rtsp.onRtcp = ( rtcp ) => {
+      if ( isRtcpBye( rtcp ) ) {
+        setTimeout( () => play( host, encoding ), 0 )
+      }
+    }
 
-  //   // Setup a new pipeline
-  //   const pipeline = new pipelines.Html5CanvasPipeline( {
-  //     ws: { uri: `ws://${host}/rtsp-over-websocket` },
-  //     rtsp: { uri: `rtsp://${host}/axis-media/media.amp?videocodec=${encoding}` },
-  //     mediaElement,
-  //   } )
+    pipeline.ready.then( () => {
+      pipeline.rtsp.play()
+    } )
 
-  //   // Restart stream on RTCP BYE (stream ended)
-  //   pipeline.rtsp.onRtcp = ( rtcp ) => {
-  //     if ( isRtcpBye( rtcp ) ) {
-  //       setTimeout( () => play( host, encoding ), 0 )
-  //     }
-  //   }
+    return pipeline
+  }
 
-  //   pipeline.ready.then( () => {
-  //     pipeline.rtsp.play()
-  //   } )
+  let pipeline;
 
-  //   return pipeline
-  // }
+  async function startIpStream() {
+    pipeline && pipeline.close()
+    await authorize()
+    pipeline = play()
+  }
 
-  // let pipeline;
-
-  // async function startIpStream() {
-  //   pipeline && pipeline.close()
-  //   await authorize()
-  //   pipeline = play()
-  // }
-
-  // startIpStream()
+  startIpStream()
 
   // model.camera = new Camera( model.html.videoCanvasElement, {
   //   onFrame: onFrame,
@@ -211,7 +220,7 @@ async function loop() {
   // Settings args because @mediapipe/camera_utils returns a specific to onFrame and can't take a function with custom ones.
   // Even though this args takes globals, it's here so refactoring to a pure function is easier in the future if we don't use @mediapipe/camera_utils.
   const args = {
-    video: model.html.videoElement,
+    video: model.html.videoCanvasElement,
     canvas: model.html.videoCanvasElement,
     context: model.html.videoCanvasCtx,
     pose: model.pose
@@ -219,34 +228,34 @@ async function loop() {
 
   args.context.drawImage( args.video, 0, 0, args.canvas.width, args.canvas.height )
 
-  if ( model.params.input.rotate != 0 ) {
+  // if ( model.params.input.rotate != 0 ) {
 
-    // if ( model.params.input.rotate % 180 == 0 ) {
-    //   args.canvas.width = args.video.width;
-    //   args.canvas.height = args.video.height;
-    // } else {
-    //   args.canvas.width = args.video.height;
-    //   args.canvas.height = args.video.width;
-    // }
+  //   // if ( model.params.input.rotate % 180 == 0 ) {
+  //   //   args.canvas.width = args.video.width;
+  //   //   args.canvas.height = args.video.height;
+  //   // } else {
+  //   //   args.canvas.width = args.video.height;
+  //   //   args.canvas.height = args.video.width;
+  //   // }
 
-    rotate(
-      args.canvas,
-      args.canvas,
-      args.context,
-      model.params.input.rotate
-    )
-  }
+  //   rotate(
+  //     args.canvas,
+  //     args.canvas,
+  //     args.context,
+  //     model.params.input.rotate
+  //   )
+  // }
 
-  if ( !!model.params.input.mirror ) {
-    mirror(
-      args.canvas,
-      args.canvas,
-      args.context
-    );
-  }
+  // if ( !!model.params.input.mirror ) {
+  //   mirror(
+  //     args.canvas,
+  //     args.canvas,
+  //     args.context
+  //   );
+  // }
 
   // Send output element frame to BlazePose.
-  await args.pose.send( { image: args.canvas } );
+  await args.pose.send( { image: args.video } );
 
   requestAnimationFrame( loop );
 
@@ -537,7 +546,6 @@ function generateAudioElement( pathToAudioFile ) {
 }
 
 // Interaction
-
 function onKeyPress( event ) {
 
   switch ( event.key ) {
