@@ -357,7 +357,7 @@ function onResults( results ) {
 
 function loadParams( id = 1, enableReadSettings = true, settingsURL = 'settings.json' ) {
 
-  let params = {
+  let stockParams = {
     global: {
       showStats: true,
       enableReadSettings: false,
@@ -397,7 +397,7 @@ function loadParams( id = 1, enableReadSettings = true, settingsURL = 'settings.
     windowId: id,
   }
 
-  if ( !enableReadSettings ) return params;
+  if ( !enableReadSettings ) return stockParams;
 
   //
 
@@ -410,12 +410,12 @@ function loadParams( id = 1, enableReadSettings = true, settingsURL = 'settings.
     console.log( {settingsArray: settingsArray} );
   } catch ( e ) {
     console.log( 'Array is empty.' );
-    return params;
+    return stockParams;
   }
 
-  const foundElement = settingsArray.find( ( e ) => e.windowId === params.windowId );
+  const foundElement = settingsArray.find( ( e ) => e.windowId === id );
   if ( !foundElement ) 
-    return params;
+    return stockParams;
     
   //
 
