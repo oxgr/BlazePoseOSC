@@ -490,8 +490,6 @@ function generateGUI( params ) {
   folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, model.html.videoElement ) ).listen();
   folderSrc.add( params.input, 'mirror' );
   folderSrc.add( params.input, 'rotate', 0, 270 ).step( 90 );
-  gui.add( model, 'addWindow' ).name( 'Add input' );
-  // folderSrc.add( params.input, 'audio' );
 
   let folderPose = gui.addFolder( 'Pose' );
   // { lite: 0, full: 1, heavy: 2 }
@@ -516,6 +514,8 @@ function generateGUI( params ) {
   folderOsc.add( params.osc, 'host' )
   folderOsc.add( params.osc, 'port' )
   folderOsc.add( params.osc, 'msgsPerSecond', 1, 60 ).step( 1 );
+
+  gui.add( model, 'addWindow' ).name( 'Add input' );
 
 }
 
