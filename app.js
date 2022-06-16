@@ -72,8 +72,8 @@ function init() {
       y: 0
     },
     {
-      x: model.html.videoCanvasElement.width,
-      y: model.html.videoCanvasElement.height
+      x: 1,
+      y: 1
     },
   ];
 
@@ -82,33 +82,11 @@ function init() {
     const w = model.html.videoElement.videoWidth
     const h = model.html.videoElement.videoHeight;
 
-    const aspectRatio = w / h;
-
     console.log( "camera dimensions", w, h );
 
-    const ch = window.innerHeight * 0.5;
-    const cw = ch * aspectRatio;
+    model.aspectRatio = w / h;
 
-    model.html.videoCanvasCtx.canvas.width  = cw;
-    model.html.videoCanvasCtx.canvas.height = ch;
-    model.html.canvasCtx.canvas.width       = cw;
-    model.html.canvasCtx.canvas.height      = ch;
-    // model.html.videoCanvasCtx.canvas.height = model.html.videoCanvasCtx.canvas.offsetWidth;
-    // model.html.videoCanvasCtx.canvas.width  = model.html.videoCanvasCtx.canvas.offsetHeight;
-    // model.html.canvasCtx.canvas.height      = model.html.canvasCtx.canvas.offsetWidth;
-    // model.html.canvasCtx.canvas.width       = model.html.canvasCtx.canvas.offsetHeight;
-
-    // Bounding box with points in the origin (top-left) and the size (bottom-right).
-    model.boundingBox = [
-      {
-        x: 0,
-        y: 0
-      },
-      {
-        x: cw,
-        y: ch
-      },
-    ]
+    onWindowResize( model.aspectRatio );
 
     ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
 
@@ -118,6 +96,8 @@ function init() {
   document.body.addEventListener( "pointerdown", onMouseDown );
   document.body.addEventListener( "pointermove", onMouseMove );
   document.body.addEventListener( "pointerup", onMouseUp );
+
+  window.addEventListener( 'resize', () => onWindowResize( model.aspectRatio ) );
 
   model.mouse = {
     drag: false,
@@ -294,10 +274,10 @@ async function loop() {
     );
   }
 
-  const x1 = model.boundingBox[0].x;
-  const y1 = model.boundingBox[0].y;
-  const x2 = model.boundingBox[1].x;
-  const y2 = model.boundingBox[1].y;
+  const x1 = model.boundingBox[0].x * args.in.width;
+  const y1 = model.boundingBox[0].y * args.in.height;
+  const x2 = model.boundingBox[1].x * args.in.width;
+  const y2 = model.boundingBox[1].y * args.in.height;
 
   args.outCtx.clearRect( 0, 0, args.out.width, args.out.height )
 
@@ -703,7 +683,7 @@ function onKeyPress( event ) {
       }
 
       model.stats.dom.style.display = model.params.global.showStats ? "block" : "none";
-      model.html.logElement.style.display = model.params.global.showStats ? "block" : "none";
+      // model.html.logElement.style.display = model.params.global.showStats ? "block" : "none";
 
       const settings = fs.readFileSync( __dirname + "/settings.json", "utf8" );
 
@@ -765,13 +745,16 @@ function onMouseDown( e ) {
   
   model.mouse.drag = true;
 
-  model.mouse.clickedCorner = model.boundingBox.findIndex( ( elem ) => model.mouse.isNear( elem.x, elem.y, 40 ) );
+  model.mouse.clickedCorner = model.boundingBox.findIndex(
+    ( elem ) => model.mouse.isNear( elem.x * model.html.videoCanvasElement.width, elem.y * model.html.videoCanvasElement.height, 40 ) );
 
   console.log( 'mouseDown, ', {
     clickedCorner: model.mouse.clickedCorner,
     ex: e.x,
     ey: e.y,
     boundingBoxes: model.boundingBox,
+    bb1x: model.boundingBox[1].x * model.html.videoCanvasElement.width,
+    bb1y: model.boundingBox[1].y * model.html.videoCanvasElement.height,
   } )
 }
 
@@ -789,14 +772,14 @@ function onMouseMove( e ) {
       const bx = model.boundingBox[ model.mouse.clickedCorner ].x
       const by = model.boundingBox[ model.mouse.clickedCorner ].y
 
-      const cw = model.html.canvasElement.width;
-      const ch = model.html.canvasElement.height;
+      const cw = model.html.videoCanvasElement.width;
+      const ch = model.html.videoCanvasElement.height;
 
       const mx = model.mouse.currentPos.x;
       const my = model.mouse.currentPos.y;
 
-      model.boundingBox[ model.mouse.clickedCorner ].x = 0 < mx || mx < cw ? mx : bx;
-      model.boundingBox[ model.mouse.clickedCorner ].y = 0 < my || my < ch ? my : by;
+      model.boundingBox[ model.mouse.clickedCorner ].x = mx < 0 || cw < mx ? bx : mx / cw;
+      model.boundingBox[ model.mouse.clickedCorner ].y = my < 0 || ch < my ? by : my / ch;
 
       // console.log( {
       //   bx: bx,
@@ -816,7 +799,30 @@ function onMouseMove( e ) {
 function onMouseUp( e ) {
 
   model.mouse.drag = false;
-  console.log( 'mouseUp, ', e )
+  // console.log( 'mouseUp, ', e )
+
+}
+
+function onWindowResize( ratio ) {
+
+  const initW = model.html.videoCanvasCtx.canvas.width;
+  const initH = model.html.videoCanvasCtx.canvas.height;
+
+  // document.body.innerWidth * 0.5;
+  const halfDW = window.innerWidth * 0.5;
+  const halfDH = window.innerHeight * 0.5;
+
+  const maxWidth = halfDH * ratio
+
+  const maxHeightReached = maxWidth < halfDW;
+
+  const targetW = maxWidth;
+  const targetH = halfDH;
+
+  model.html.videoCanvasCtx.canvas.width  = targetW;
+  model.html.videoCanvasCtx.canvas.height = targetH;
+  model.html.canvasCtx.canvas.width       = targetW;
+  model.html.canvasCtx.canvas.height      = targetH;
 
 }
 

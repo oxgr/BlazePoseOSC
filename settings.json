@@ -1,7 +1,7 @@
 [
   {
     "global": {
-      "showStats": false,
+      "showStats": true,
       "enableReadSettings": false
     },
     "input": {
