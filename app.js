@@ -23,7 +23,8 @@ const OSC = require( 'osc-js' );
 const dat = require( 'dat.gui' );
 const Stats = require( 'stats.js' );
 const { Camera } = require( '@mediapipe/camera_utils' );
-const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' )
+const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' );
+const { gui } = require( 'dat.gui' );
 //const mediaStream = require('media-stream-library');
 //const MjpegCamera = require('mjpeg-camera');
 // const { pipelines, isRtcpBye } = window.mediaStreamLibrary
@@ -39,7 +40,7 @@ function init() {
   // Settings
 
   const id = remote.getCurrentWebContents().id
-  console.log( `Window ID: ${ id }` );
+  console.log( `Window ID: ${id}` );
   const enableReadSettings = true;
   const settingsURL = 'settings.json'
 
@@ -65,23 +66,74 @@ function init() {
   model.html.logElement = document.getElementById( 'log' );
   model.html.logElement.innerHTML = `Loading...`;
 
+  model.boundingBox = [
+    {
+      x: 0,
+      y: 0
+    },
+    {
+      x: model.html.videoCanvasElement.width,
+      y: model.html.videoCanvasElement.height
+    },
+  ];
+
   model.html.videoElement.onloadeddata = function () {
 
     const w = model.html.videoElement.videoWidth
     const h = model.html.videoElement.videoHeight;
 
+    const aspectRatio = w / h;
+
     console.log( "camera dimensions", w, h );
 
-    model.html.videoCanvasCtx.canvas.width = w;
-    model.html.videoCanvasCtx.canvas.height = h;
-    model.html.canvasCtx.canvas.width = w;
-    model.html.canvasCtx.canvas.height = h;
+    const ch = window.innerHeight * 0.5;
+    const cw = ch * aspectRatio;
+
+    model.html.videoCanvasCtx.canvas.width  = cw;
+    model.html.videoCanvasCtx.canvas.height = ch;
+    model.html.canvasCtx.canvas.width       = cw;
+    model.html.canvasCtx.canvas.height      = ch;
+    // model.html.videoCanvasCtx.canvas.height = model.html.videoCanvasCtx.canvas.offsetWidth;
+    // model.html.videoCanvasCtx.canvas.width  = model.html.videoCanvasCtx.canvas.offsetHeight;
+    // model.html.canvasCtx.canvas.height      = model.html.canvasCtx.canvas.offsetWidth;
+    // model.html.canvasCtx.canvas.width       = model.html.canvasCtx.canvas.offsetHeight;
+
+    // Bounding box with points in the origin (top-left) and the size (bottom-right).
+    model.boundingBox = [
+      {
+        x: 0,
+        y: 0
+      },
+      {
+        x: cw,
+        y: ch
+      },
+    ]
 
     ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
 
   }
 
   document.body.addEventListener( "keypress", onKeyPress );
+  document.body.addEventListener( "pointerdown", onMouseDown );
+  document.body.addEventListener( "pointermove", onMouseMove );
+  document.body.addEventListener( "pointerup", onMouseUp );
+
+  model.mouse = {
+    drag: false,
+    startPos: {
+      x: 0,
+      y: 0
+    },
+    currentPos: {
+      x: 0,
+      y: 0
+    },
+    isNear: ( x, y, dist ) => {
+      return Math.abs( model.mouse.currentPos.x - x ) < dist && 
+              Math.abs( model.mouse.currentPos.y - y ) < dist 
+    }
+  }
 
   // OSC
 
@@ -115,7 +167,7 @@ function init() {
   ( async () => {
     await getStream( model.params.input.source, model.html.videoElement );
     model.params.input.availableSources.video = await getDevices();
-    generateGUI( model.params );
+    model.gui = generateGUI( model.params );
   } )()
 
   // Stats
@@ -204,43 +256,98 @@ async function loop() {
 
   model.stats.begin();
 
-  // Settings args because @mediapipe/camera_utils returns a specific to onFrame and can't take a function with custom ones.
-  // Even though this args takes globals, it's here so refactoring to a pure function is easier in the future if we don't use @mediapipe/camera_utils.
   const args = {
     video: model.html.videoElement,
-    canvas: model.html.videoCanvasElement,
-    context: model.html.videoCanvasCtx,
+    in: model.html.videoCanvasElement,
+    inCtx: model.html.videoCanvasCtx,
+    out: model.html.canvasElement,
+    outCtx: model.html.canvasCtx,
     pose: model.pose
   }
 
-  args.context.drawImage( args.video, 0, 0, args.canvas.width, args.canvas.height )
+  
+
+  args.inCtx.drawImage( args.video, 0, 0, args.in.width, args.in.height );
+
 
   if ( model.params.input.rotate != 0 ) {
 
     // if ( model.params.input.rotate % 180 == 0 ) {
-    //   args.canvas.width = args.video.videoWidth;
-    //   args.canvas.height = args.video.videoHeight;
+    //   args.in.width = args.video.videoWidth;
+    //   args.in.height = args.video.videoHeight;
     // } else {
-    //   args.canvas.width = args.video.videoWidth;
-    //   args.canvas.height = args.video.videoWidth;
+    //   args.in.width = args.video.videoWidth;
+    //   args.in.height = args.video.videoWidth;
     // }
 
     rotate(
-      args.canvas,
-      args.context,
+      args.in,
+      args.inCtx,
       model.params.input.rotate
     )
   }
 
   if ( !!model.params.input.mirror ) {
     mirror(
-      args.canvas,
-      args.context
+      args.in,
+      args.inCtx
     );
   }
 
+  const x1 = model.boundingBox[0].x;
+  const y1 = model.boundingBox[0].y;
+  const x2 = model.boundingBox[1].x;
+  const y2 = model.boundingBox[1].y;
+
+  args.outCtx.clearRect( 0, 0, args.out.width, args.out.height )
+
+  // Draw the image in the boundingBox from in to out.
+  args.outCtx.drawImage(
+    args.in,
+    x1,
+    y1,
+    x2 - x1,
+    y2 - y1,
+    0,
+    0,
+    ( ( x2 - x1 ) / ( y2 - y1 ) ) * args.out.height ,
+    args.out.height,
+  )
+
+  
+  // Draw the bounding box.
+  
+  const cornerSize = 40;
+  const halfCorner = cornerSize * 0.5;
+  args.inCtx.lineWidth = 3;
+  args.inCtx.strokeStyle = 'yellow' ;
+
+  args.inCtx.strokeRect(
+    x1,
+    y1,
+    x2 - x1,
+    y2 - y1,
+  )
+
+  // Draw the bounding box corners for dragging.
+  args.inCtx.strokeStyle = 'red' ;
+  args.inCtx.strokeRect(
+    x1 - halfCorner,
+    y1 - halfCorner,
+    cornerSize,
+    cornerSize,
+  )
+  args.inCtx.strokeRect(
+    x2 - halfCorner,
+    y2 - halfCorner,
+    cornerSize,
+    cornerSize,
+  )
+
+  
+
   // Send output element frame to BlazePose.
-  await args.pose.send( { image: args.canvas } )
+  await args.pose.send( { image: args.out } )
 
   // Log info to HTML DOM Element
   model.html.logElement.innerHTML = generateLogContent( model );
@@ -307,11 +414,11 @@ function onResults( results ) {
   model.poseResults = results;
 
   // Clear rect first so the old landmarks are gone if new results are null.
-  model.html.canvasCtx.clearRect( 0, 0, model.html.canvasElement.width, model.html.canvasElement.height );
+  // model.html.canvasCtx.clearRect( 0, 0, model.html.canvasElement.width, model.html.canvasElement.height );
 
   if ( results.poseLandmarks == null ) return;
 
-  model.html.canvasCtx.save();
+  // model.html.canvasCtx.save();
 
   if ( model.params.draw.segmentationMask ) {
     model.html.canvasCtx.drawImage( results.segmentationMask, 0, 0,
@@ -340,7 +447,7 @@ function onResults( results ) {
       { color: '#ff0000', lineWidth: model.params.draw.landmarkSize } );
   }
 
-  model.html.canvasCtx.restore();
+  // model.html.canvasCtx.restore();
 
   // Send OSC messages in the message rate defined in model.params.
   if ( model.params.osc.enable && ( ( Date.now() - model.oscTimer ) > ( 1000 / model.params.osc.msgsPerSecond ) ) ) {
@@ -401,22 +508,22 @@ function loadParams( id = 1, enableReadSettings = true, settingsURL = 'settings.
 
   //
 
-  const settings = fs.readFileSync( __dirname + `/${ settingsURL }`, "utf8" );
+  const settings = fs.readFileSync( __dirname + `/${settingsURL}`, "utf8" );
   let settingsArray = [];
   let index = 0;
 
   try {
     settingsArray = JSON.parse( settings );
-    console.log( {settingsArray: settingsArray} );
+    console.log( { settingsArray: settingsArray } );
   } catch ( e ) {
     console.log( 'Array is empty.' );
     return stockParams;
   }
 
   const foundElement = settingsArray.find( ( e ) => e.windowId === id );
-  if ( !foundElement ) 
+  if ( !foundElement )
     return stockParams;
-    
+
   //
 
   return foundElement;
@@ -485,7 +592,7 @@ function generateGUI( params ) {
 
   let gui = new dat.GUI();
 
-  
+
   let folderSrc = gui.addFolder( 'Input' );
   folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, model.html.videoElement ) ).listen();
   folderSrc.add( params.input, 'mirror' );
@@ -516,6 +623,8 @@ function generateGUI( params ) {
   folderOsc.add( params.osc, 'msgsPerSecond', 1, 60 ).step( 1 );
 
   gui.add( model, 'addWindow' ).name( 'Add input' );
+
+  return gui;
 
 }
 
@@ -584,23 +693,30 @@ function onKeyPress( event ) {
       break;
 
     case 'g':
-      dat.GUI.toggleHide();
+      // dat.GUI.toggleHide();
       model.params.global.showStats = !model.params.global.showStats;
+
+      if ( model.params.global.showStats ) {
+        model.gui.show()
+      } else {
+        model.gui.hide()
+      }
+
       model.stats.dom.style.display = model.params.global.showStats ? "block" : "none";
       model.html.logElement.style.display = model.params.global.showStats ? "block" : "none";
 
       const settings = fs.readFileSync( __dirname + "/settings.json", "utf8" );
-      
+
       let settingsArray = [];
       let index = 0;
 
       try {
         settingsArray = JSON.parse( settings );
-        console.log( {settingsArray: settingsArray} );
+        console.log( { settingsArray: settingsArray } );
       } catch ( e ) {
         console.log( 'Cannot parse settings.\nError:', e );
       }
-        
+
       index = settingsArray.findIndex( ( e ) => e.windowId == model.params.windowId );
 
       // If index is not found, set index to the end of the array
@@ -611,7 +727,7 @@ function onKeyPress( event ) {
         settingsArray.push( model.params );
       }
 
-      
+
 
       console.log( { beforeWrite: settingsArray } );
 
@@ -637,6 +753,71 @@ function onKeyPress( event ) {
       ipcRenderer.send( 'float' );
       break;
   }
+}
+
+function onMouseDown( e ) {
+  
+  model.mouse.startPos.x = e.x;
+  model.mouse.startPos.y = e.y;
+  
+  model.mouse.currentPos.x = e.x;
+  model.mouse.currentPos.y = e.y;
+  
+  model.mouse.drag = true;
+
+  model.mouse.clickedCorner = model.boundingBox.findIndex( ( elem ) => model.mouse.isNear( elem.x, elem.y, 40 ) );
+
+  console.log( 'mouseDown, ', {
+    clickedCorner: model.mouse.clickedCorner,
+    ex: e.x,
+    ey: e.y,
+    boundingBoxes: model.boundingBox,
+  } )
+}
+
+function onMouseMove( e ) {
+
+  if ( !model.mouse.drag  ) return;
+  
+  // Check to avoid micro-drags
+  // if ( Math.abs( e.x - model.mouse.startPos.x ) > model.mouse.delta && Math.abs( e.y - model.mouse.startPos.y ) > model.mouse.delta  ) {
+
+    model.mouse.currentPos.x = e.x;
+    model.mouse.currentPos.y = e.y;
+    if ( model.mouse.clickedCorner > -1 ) {
+
+      const bx = model.boundingBox[ model.mouse.clickedCorner ].x
+      const by = model.boundingBox[ model.mouse.clickedCorner ].y
+
+      const cw = model.html.canvasElement.width;
+      const ch = model.html.canvasElement.height;
+
+      const mx = model.mouse.currentPos.x;
+      const my = model.mouse.currentPos.y;
+
+      model.boundingBox[ model.mouse.clickedCorner ].x = 0 < mx || mx < cw ? mx : bx;
+      model.boundingBox[ model.mouse.clickedCorner ].y = 0 < my || my < ch ? my : by;
+
+      // console.log( {
+      //   bx: bx,
+      //   by: by,
+      //   cw: cw,
+      //   ch: ch,
+      //   mx: mx,
+      //   my: my
+      // })
+    }
+
+
+
+  // console.log( 'mousemove,', e );
+}
+
+function onMouseUp( e ) {
+
+  model.mouse.drag = false;
+  console.log( 'mouseUp, ', e )
+
 }
 
 // OSC
