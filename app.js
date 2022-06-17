@@ -636,11 +636,14 @@ function generateAudioElement( pathToAudioFile ) {
 function generateLogContent() {
 
   const str = `
-  Pose found:
-  ${!!model.poseResults.poseLandmarks}
+  Window ID:
+  ${ model.params.windowId }
   
   Camera dimensions:
   [${model.html.videoElement.videoWidth}, ${model.html.videoElement.videoHeight}]
+
+  Pose found:
+  ${!!model.poseResults.poseLandmarks}
   
   `;
 
@@ -867,8 +870,7 @@ function sendPosesADDR( poses, osc ) {
 }
 
 function sendPosesJSON( poses, osc ) {
-  poses.id = 'Anfang';
-  osc.send( new OSC.Message( "/poses/json", JSON.stringify( poses ) ) );
+  osc.send( new OSC.Message( `/poses/json/${ model.params.windowId }`, JSON.stringify( poses.poseLandmarks ) ) );
 }
 
 function sendPosesARR( poses, osc ) {
