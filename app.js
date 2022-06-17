@@ -13,6 +13,8 @@ const { pipelines, isRtcpBye } = window.mediaStreamLibrary
 
 const model = {};
 
+let frameInProcess =  false;
+
 init();
 loop();
 
@@ -58,6 +60,11 @@ function init() {
       host: 'localhost',
       port: '9527',
       msgsPerSecond: 30,
+    },
+    debug: {
+      drawFirstImage: true,
+      sendToPose: true,
+      poseSource: 'canvas',
     }
   }
 
@@ -80,8 +87,8 @@ function init() {
 
     let scale = 0.1
 
-    const w = model.html.videoElement.videoWidth; //* scale
-    const h = model.html.videoElement.videoHeight; //* scale;
+    const w = model.html.videoElement.videoWidth;
+    const h = model.html.videoElement.videoHeight;
 
     console.log( "camera dimensions", w, h );
 
@@ -174,22 +181,31 @@ function init() {
     let mediaElement = model.html.videoElement;
 
     // Setup a new pipeline
-    const pipeline = new pipelines.Html5VideoPipeline( {
-      ws: { uri: `ws://${host}/rtsp-over-websocket` },
-      rtsp: { uri: `rtsp://${host}/axis-media/media.amp?videocodec=${encoding}` },
+    // const pipeline = new pipelines.Html5VideoPipeline( {
+    //   ws: { uri: `ws://${host}/rtsp-over-websocket` },
+    //   rtsp: { uri: `rtsp://${host}/axis-media/media.amp?videocodec=${encoding}` },
+    //   mediaElement,
+    // } )
+
+    pipeline = new pipelines.HttpMsePipeline({
+      http: {
+        uri: `http://${host}/axis-cgi/media.cgi?videocodec=h264&container=mp4`,
+      },
       mediaElement,
-    } )
+    })
+    pipeline.http.play()
 
-    // Restart stream on RTCP BYE (stream ended)
-    pipeline.rtsp.onRtcp = ( rtcp ) => {
-      if ( isRtcpBye( rtcp ) ) {
-        setTimeout( () => play( host, encoding ), 0 )
-      }
-    }
 
-    pipeline.ready.then( () => {
-      pipeline.rtsp.play()
-    } )
+    // // Restart stream on RTCP BYE (stream ended)
+    // pipeline.rtsp.onRtcp = ( rtcp ) => {
+    //   if ( isRtcpBye( rtcp ) ) {
+    //     setTimeout( () => play( host, encoding ), 0 )
+    //   }
+    // }
+
+    // pipeline.ready.then( () => {
+    //   pipeline.rtsp.play()
+    // } )
 
     return pipeline
   }
@@ -217,16 +233,18 @@ function init() {
 
 async function loop() {
 
+  model.stats.begin();
+
   // Settings args because @mediapipe/camera_utils returns a specific to onFrame and can't take a function with custom ones.
   // Even though this args takes globals, it's here so refactoring to a pure function is easier in the future if we don't use @mediapipe/camera_utils.
   const args = {
-    video: model.html.videoCanvasElement,
+    video: model.html.videoElement,
     canvas: model.html.videoCanvasElement,
     context: model.html.videoCanvasCtx,
     pose: model.pose
   }
 
-  args.context.drawImage( args.video, 0, 0, args.canvas.width, args.canvas.height )
+  if ( model.params.debug.drawFirstImage ) args.context.drawImage( args.video, 0, 0, args.canvas.width, args.canvas.height )
 
   // if ( model.params.input.rotate != 0 ) {
 
@@ -255,7 +273,17 @@ async function loop() {
   // }
 
   // Send output element frame to BlazePose.
-  await args.pose.send( { image: args.video } );
+
+  //if(frameInProcess) return
+
+  if (model.params.debug.sendToPose && !frameInProcess) {
+    frameInProcess = true
+    args.pose.send( { image: args[ model.params.debug.poseSource ] });
+  } 
+  
+  //console.log("frame in progress: ", frameInProcess);
+
+  model.stats.end();
 
   requestAnimationFrame( loop );
 
@@ -386,16 +414,11 @@ async function loop() {
 // }
 
 function onResults( results ) {
-
-  model.stats.begin();
-
+  
   // Clear rect first so the old landmarks are gone if new results are null.
   model.html.canvasCtx.clearRect( 0, 0, model.html.canvasElement.width, model.html.canvasElement.height );
 
-  if ( results.poseLandmarks == null ) {
-    model.stats.end();
-    return;
-  }
+  if ( results.poseLandmarks == null ) return;
 
   model.html.canvasCtx.save();
 
@@ -437,7 +460,8 @@ function onResults( results ) {
 
   }
 
-  model.stats.end();
+  frameInProcess = false;
+  //console.log("frame in progress: " ,frameInProcess);
 }
 
 // Input
@@ -522,6 +546,11 @@ function generateGUI( params ) {
   folderOsc.add( params.osc, 'host' )
   folderOsc.add( params.osc, 'port' )
   folderOsc.add( params.osc, 'msgsPerSecond', 1, 60 ).step( 1 );
+
+  let folderDebug = gui.addFolder( 'Debug' );
+  folderDebug.add( params.debug, 'drawFirstImage' );
+  folderDebug.add( params.debug, 'sendToPose' );
+  folderDebug.add( params.debug, 'poseSource', { canvas: 'canvas', video: 'video' } );
 
 }
 
