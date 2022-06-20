@@ -151,6 +151,7 @@ function init() {
     await getStream( model.params.input.source, model.html.videoElement );
     model.params.input.availableSources.video = await getDevices();
     model.gui = generateGUI( model.params );
+    // model.gui.domElement.style.width = '400px'
     model.gui.close();
   } )()
 
@@ -585,11 +586,12 @@ async function getDevices() {
  */
 function generateGUI( params ) {
 
-  let gui = new dat.GUI();
-
+  let gui = new dat.GUI( { width: 450 });
+  
   let folderGlobal = gui.addFolder( 'Global' );
   folderGlobal.add( params.global, 'id', 1, 10 ).name( 'ID' ).step( 1 );
   folderGlobal.add( model, 'resetSettings' ).name( 'Reset settings.json');
+  folderGlobal.add( gui.domElement.style, 'width' ).name( 'GUI width' ).listen();
 
   let folderSrc = gui.addFolder( 'Input' );
   folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, model.html.videoElement ) ).listen();
@@ -694,7 +696,8 @@ function onKeyPress( event ) {
         camera: model.camera,
         CameraImport: Camera,
         pose: model.pose,
-        results: model.poseResults
+        results: model.poseResults,
+        gui:model.gui,
       } );
       break;
 
