@@ -26,16 +26,6 @@
 
     }
 
-    #input_video,
-    #input_video_canvas,
-    #output_canvas {
-
-    }
-
-    #input_video {
-
-    }
-
     #input_video_canvas {
 
       position: absolute;
@@ -48,6 +38,10 @@
 
     }
 
+    #buffer_canvas {
+      display: none;
+    }
+
     #log {
 
       font-family: 'Courier New', Courier, monospace;
@@ -55,11 +49,11 @@
       color: white;
       background-color: rgba( 0, 0, 0, 0.5 );
       position: absolute;
-      top: 50vh;
+      top: 20px;
       right: 10px;
       margin: 10px;
       padding: 10px;
-      z-index: 1;
+      z-index: 0;
 
     }
   </style>
@@ -76,6 +70,8 @@
     <canvas id="output_canvas"></canvas>
     <div id="log"></div>
   </div>
+
+  <canvas id="buffer_canvas"></canvas>
 
   <script src="./app.js"></script>
 

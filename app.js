@@ -64,6 +64,8 @@ function init() {
   model.html.canvasElement = document.getElementById( 'output_canvas' );
   model.html.canvasCtx = model.html.canvasElement.getContext( '2d' );
 
+  model.html.buffer = document.getElementById( 'buffer_canvas' );
+
   model.html.logElement = document.getElementById( 'log' );
   model.html.logElement.innerHTML = `Loading...`;
 
@@ -149,6 +151,7 @@ function init() {
     await getStream( model.params.input.source, model.html.videoElement );
     model.params.input.availableSources.video = await getDevices();
     model.gui = generateGUI( model.params );
+    model.gui.close();
   } )()
 
   // Stats
@@ -243,6 +246,7 @@ async function loop() {
     inCtx: model.html.videoCanvasCtx,
     out: model.html.canvasElement,
     outCtx: model.html.canvasCtx,
+    buffer: model.html.buffer,
     pose: model.pose
   }
 
@@ -264,6 +268,7 @@ async function loop() {
     rotate(
       args.in,
       args.inCtx,
+      args.buffer,
       model.params.input.rotate
     )
   }
@@ -339,7 +344,7 @@ async function loop() {
 
   //
 
-  function rotate( element, context, angle ) {
+  function rotate( element, context, buffer, angle ) {
 
     const w = element.width;
     const h = element.height;
@@ -349,12 +354,18 @@ async function loop() {
 
     const angleInRadians = angle * ( Math.PI / 180 );
 
+    bufferCtx = buffer.getContext( '2d' ); 
+
+    bufferCtx.drawImage( element, 0, 0, w, h );
+    context.clearRect( 0, 0, w, h );
+
     // Rotate magic
     context.translate( x, y );
     context.rotate( angleInRadians );
 
     // Draw video frame to output canvas context
-    context.drawImage( element, - ( w * 0.5 ), - ( h * 0.5 ), w, h );
+    const ratioHeight = h / model.aspectRatio;
+    context.drawImage( buffer, - ( h * 0.5 ), - ( ratioHeight * 0.5 ), h, ratioHeight  );
 
     // Revert global changes to context
     context.rotate( -angleInRadians );
@@ -838,6 +849,8 @@ function onWindowResize( ratio ) {
   model.html.videoCanvasCtx.canvas.height = targetH;
   model.html.canvasCtx.canvas.width = targetW;
   model.html.canvasCtx.canvas.height = targetH;
+  model.html.buffer.width  = targetW;
+  model.html.buffer.height = targetH;
 
 }
 
