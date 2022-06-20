@@ -39,16 +39,17 @@ function init() {
 
   // Settings
 
-  const id = remote.getCurrentWebContents().id
-  console.log( `Window ID: ${id}` );
+  const windowId = remote.getCurrentWebContents().id
   const enableReadSettings = true;
   const settingsURL = 'settings.json'
 
-  model.params = loadParams( id, enableReadSettings, settingsURL );
+  model.params = loadParams( windowId, enableReadSettings, settingsURL );
+  model.addWindow = () => ipcRenderer.send( 'addWindow' );
+  model.resetSettings = () => { fs.readFileSync( `${__dirname}/${settingsURL}`, ''); console.log( 'settings.json reset!' ); };
 
+  console.log( `Window ID: ${windowId}` );
   console.log( model.params );
 
-  model.addWindow = () => ipcRenderer.send( 'addWindow' );
 
   // HTML
 
@@ -110,8 +111,8 @@ function init() {
       y: 0
     },
     isNear: ( x, y, dist ) => {
-      return Math.abs( model.mouse.currentPos.x - x ) < dist && 
-              Math.abs( model.mouse.currentPos.y - y ) < dist 
+      return Math.abs( model.mouse.currentPos.x - x ) < dist &&
+        Math.abs( model.mouse.currentPos.y - y ) < dist
     }
   }
 
@@ -245,7 +246,7 @@ async function loop() {
     pose: model.pose
   }
 
-  
+
 
   args.inCtx.drawImage( args.video, 0, 0, args.in.width, args.in.height );
 
@@ -274,10 +275,10 @@ async function loop() {
     );
   }
 
-  const x1 = model.boundingBox[0].x * args.in.width;
-  const y1 = model.boundingBox[0].y * args.in.height;
-  const x2 = model.boundingBox[1].x * args.in.width;
-  const y2 = model.boundingBox[1].y * args.in.height;
+  const x1 = model.boundingBox[ 0 ].x * args.in.width;
+  const y1 = model.boundingBox[ 0 ].y * args.in.height;
+  const x2 = model.boundingBox[ 1 ].x * args.in.width;
+  const y2 = model.boundingBox[ 1 ].y * args.in.height;
 
   args.outCtx.clearRect( 0, 0, args.out.width, args.out.height )
 
@@ -290,17 +291,17 @@ async function loop() {
     y2 - y1,
     0,
     0,
-    ( ( x2 - x1 ) / ( y2 - y1 ) ) * args.out.height ,
+    ( ( x2 - x1 ) / ( y2 - y1 ) ) * args.out.height,
     args.out.height,
   )
 
-  
+
   // Draw the bounding box.
-  
+
   const cornerSize = 40;
   const halfCorner = cornerSize * 0.5;
   args.inCtx.lineWidth = 3;
-  args.inCtx.strokeStyle = 'yellow' ;
+  args.inCtx.strokeStyle = 'yellow';
 
   args.inCtx.strokeRect(
     x1,
@@ -310,7 +311,7 @@ async function loop() {
   )
 
   // Draw the bounding box corners for dragging.
-  args.inCtx.strokeStyle = 'red' ;
+  args.inCtx.strokeStyle = 'red';
   args.inCtx.strokeRect(
     x1 - halfCorner,
     y1 - halfCorner,
@@ -324,7 +325,7 @@ async function loop() {
     cornerSize,
   )
 
-  
+
 
   // Send output element frame to BlazePose.
   await args.pose.send( { image: args.out } )
@@ -442,10 +443,13 @@ function onResults( results ) {
 
 // Settings
 
-function loadParams( id = 1, enableReadSettings = true, settingsURL = 'settings.json' ) {
+function loadParams( windowId = 1, enableReadSettings = true, settingsURL = 'settings.json' ) {
+
+  console.log( 'loadParams called with enableRead:', enableReadSettings )
 
   let stockParams = {
     global: {
+      id: 1,
       showStats: true,
       enableReadSettings: false,
     },
@@ -481,7 +485,7 @@ function loadParams( id = 1, enableReadSettings = true, settingsURL = 'settings.
       port: '9527',
       msgsPerSecond: 30,
     },
-    windowId: id,
+    windowId: windowId,
   }
 
   if ( !enableReadSettings ) return stockParams;
@@ -500,7 +504,7 @@ function loadParams( id = 1, enableReadSettings = true, settingsURL = 'settings.
     return stockParams;
   }
 
-  const foundElement = settingsArray.find( ( e ) => e.windowId === id );
+  const foundElement = settingsArray.find( ( e ) => e.windowId === windowId );
   if ( !foundElement )
     return stockParams;
 
@@ -572,11 +576,15 @@ function generateGUI( params ) {
 
   let gui = new dat.GUI();
 
+  let folderGlobal = gui.addFolder( 'Global' );
+  folderGlobal.add( params.global, 'id', 1, 10 ).name( 'ID' ).step( 1 );
+  folderGlobal.add( model, 'resetSettings' ).name( 'Reset settings.json');
 
   let folderSrc = gui.addFolder( 'Input' );
   folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, model.html.videoElement ) ).listen();
   folderSrc.add( params.input, 'mirror' );
   folderSrc.add( params.input, 'rotate', 0, 270 ).step( 90 );
+  folderSrc.add( model, 'addWindow' ).name( 'Add input' );
 
   let folderPose = gui.addFolder( 'Pose' );
   // { lite: 0, full: 1, heavy: 2 }
@@ -601,8 +609,6 @@ function generateGUI( params ) {
   folderOsc.add( params.osc, 'host' )
   folderOsc.add( params.osc, 'port' )
   folderOsc.add( params.osc, 'msgsPerSecond', 1, 60 ).step( 1 );
-
-  gui.add( model, 'addWindow' ).name( 'Add input' );
 
   return gui;
 
@@ -636,11 +642,17 @@ function generateAudioElement( pathToAudioFile ) {
 function generateLogContent() {
 
   const str = `
-  Window ID:
-  ${ model.params.windowId }
+  ID:
+  ${model.params.global.id}
   
+  Electron window ID:
+  ${model.params.windowId}
+
   Camera dimensions:
   [${model.html.videoElement.videoWidth}, ${model.html.videoElement.videoHeight}]
+
+  OSC sending to:
+  ${model.params.osc.host}:${model.params.osc.port}
 
   Pose found:
   ${!!model.poseResults.poseLandmarks}
@@ -739,60 +751,60 @@ function onKeyPress( event ) {
 }
 
 function onMouseDown( e ) {
-  
+
   model.mouse.startPos.x = e.x;
   model.mouse.startPos.y = e.y;
-  
+
   model.mouse.currentPos.x = e.x;
   model.mouse.currentPos.y = e.y;
-  
+
   model.mouse.drag = true;
 
   model.mouse.clickedCorner = model.boundingBox.findIndex(
     ( elem ) => model.mouse.isNear( elem.x * model.html.videoCanvasElement.width, elem.y * model.html.videoCanvasElement.height, 40 ) );
 
-  console.log( 'mouseDown, ', {
-    clickedCorner: model.mouse.clickedCorner,
-    ex: e.x,
-    ey: e.y,
-    boundingBoxes: model.boundingBox,
-    bb1x: model.boundingBox[1].x * model.html.videoCanvasElement.width,
-    bb1y: model.boundingBox[1].y * model.html.videoCanvasElement.height,
-  } )
+  // console.log( 'mouseDown, ', {
+  //   clickedCorner: model.mouse.clickedCorner,
+  //   ex: e.x,
+  //   ey: e.y,
+  //   boundingBoxes: model.boundingBox,
+  //   bb1x: model.boundingBox[ 1 ].x * model.html.videoCanvasElement.width,
+  //   bb1y: model.boundingBox[ 1 ].y * model.html.videoCanvasElement.height,
+  // } )
 }
 
 function onMouseMove( e ) {
 
-  if ( !model.mouse.drag  ) return;
-  
+  if ( !model.mouse.drag ) return;
+
   // Check to avoid micro-drags
   // if ( Math.abs( e.x - model.mouse.startPos.x ) > model.mouse.delta && Math.abs( e.y - model.mouse.startPos.y ) > model.mouse.delta  ) {
 
-    model.mouse.currentPos.x = e.x;
-    model.mouse.currentPos.y = e.y;
-    if ( model.mouse.clickedCorner > -1 ) {
+  model.mouse.currentPos.x = e.x;
+  model.mouse.currentPos.y = e.y;
+  if ( model.mouse.clickedCorner > -1 ) {
 
-      const bx = model.boundingBox[ model.mouse.clickedCorner ].x
-      const by = model.boundingBox[ model.mouse.clickedCorner ].y
+    const bx = model.boundingBox[ model.mouse.clickedCorner ].x
+    const by = model.boundingBox[ model.mouse.clickedCorner ].y
 
-      const cw = model.html.videoCanvasElement.width;
-      const ch = model.html.videoCanvasElement.height;
+    const cw = model.html.videoCanvasElement.width;
+    const ch = model.html.videoCanvasElement.height;
 
-      const mx = model.mouse.currentPos.x;
-      const my = model.mouse.currentPos.y;
+    const mx = model.mouse.currentPos.x;
+    const my = model.mouse.currentPos.y;
 
-      model.boundingBox[ model.mouse.clickedCorner ].x = mx < 0 || cw < mx ? bx : mx / cw;
-      model.boundingBox[ model.mouse.clickedCorner ].y = my < 0 || ch < my ? by : my / ch;
+    model.boundingBox[ model.mouse.clickedCorner ].x = mx < 0 || cw < mx ? bx : mx / cw;
+    model.boundingBox[ model.mouse.clickedCorner ].y = my < 0 || ch < my ? by : my / ch;
 
-      // console.log( {
-      //   bx: bx,
-      //   by: by,
-      //   cw: cw,
-      //   ch: ch,
-      //   mx: mx,
-      //   my: my
-      // })
-    }
+    // console.log( {
+    //   bx: bx,
+    //   by: by,
+    //   cw: cw,
+    //   ch: ch,
+    //   mx: mx,
+    //   my: my
+    // })
+  }
 
 
 
@@ -822,10 +834,10 @@ function onWindowResize( ratio ) {
   const targetW = maxWidth;
   const targetH = halfDH;
 
-  model.html.videoCanvasCtx.canvas.width  = targetW;
+  model.html.videoCanvasCtx.canvas.width = targetW;
   model.html.videoCanvasCtx.canvas.height = targetH;
-  model.html.canvasCtx.canvas.width       = targetW;
-  model.html.canvasCtx.canvas.height      = targetH;
+  model.html.canvasCtx.canvas.width = targetW;
+  model.html.canvasCtx.canvas.height = targetH;
 
 }
 
@@ -870,7 +882,7 @@ function sendPosesADDR( poses, osc ) {
 }
 
 function sendPosesJSON( poses, osc ) {
-  osc.send( new OSC.Message( `/poses/json/${ model.params.windowId }`, JSON.stringify( poses.poseLandmarks ) ) );
+  osc.send( new OSC.Message( `/poses/json/${model.params.global.id}`, JSON.stringify( poses.poseLandmarks ) ) );
 }
 
 function sendPosesARR( poses, osc ) {

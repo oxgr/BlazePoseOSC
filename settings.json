@@ -1,7 +1,8 @@
 [
   {
     "global": {
-      "showStats": true,
+      "id": 2,
+      "showStats": false,
       "enableReadSettings": false
     },
     "input": {
