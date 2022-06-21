@@ -37,18 +37,25 @@ loop();
 
 function init() {
 
+  model.version = '0.2.3';
+
   // Settings
 
   const windowId = remote.getCurrentWebContents().id
   const enableReadSettings = true;
-  const settingsURL = 'settings.json'
+  model.settingsURL = 'settings.json'
 
-  model.params = loadParams( windowId, enableReadSettings, settingsURL );
+  model.settings = loadSettings( windowId, enableReadSettings, model.settingsURL );
+  console.log( '[INIT]: Params loaded.' );
+  console.log( model.settings );
+
+  // Add global functions to an object so they can be easily used in GUI. More stable than using window[] functions.
   model.addWindow = () => ipcRenderer.send( 'addWindow' );
-  model.resetSettings = () => { fs.readFileSync( `${__dirname}/${settingsURL}`, ''); console.log( 'settings.json reset!' ); };
+  model.saveSettings = () => saveSettings();
+  model.clearSettings = () => { fs.writeFileSync( `${__dirname}/${model.settingsURL}`, ''); console.log( 'settings.json cleared!' ); };
 
-  console.log( `Window ID: ${windowId}` );
-  console.log( model.params );
+  console.log( `Electron window ID: ${windowId}` );
+  console.log( model.settings );
 
 
   // HTML
@@ -120,7 +127,7 @@ function init() {
 
   // OSC
 
-  model.osc = openOSC( model.params.osc.host, model.params.osc.port );
+  model.osc = openOSC( model.settings.osc.host, model.settings.osc.port );
   model.oscTimer = Date.now();
 
   model.keypointNames = [
@@ -148,9 +155,9 @@ function init() {
   // GUI
 
   ( async () => {
-    await getStream( model.params.input.source, model.html.videoElement );
-    model.params.input.availableSources.video = await getDevices();
-    model.gui = generateGUI( model.params );
+    await getStream( model.settings.input.source, model.html.videoElement );
+    model.settings.input.availableSources.video = await getDevices();
+    model.gui = generateGUI( model.settings );
     // model.gui.domElement.style.width = '400px'
     model.gui.close();
   } )()
@@ -169,7 +176,7 @@ function init() {
     }
   } );
 
-  model.pose.setOptions( model.params.pose.options );
+  model.pose.setOptions( model.settings.pose.options );
   model.pose.onResults( onResults );
 
   // Camera  
@@ -256,9 +263,9 @@ async function loop() {
   args.inCtx.drawImage( args.video, 0, 0, args.in.width, args.in.height );
 
 
-  if ( model.params.input.rotate != 0 ) {
+  if ( model.settings.input.rotate != 0 ) {
 
-    // if ( model.params.input.rotate % 180 == 0 ) {
+    // if ( model.settings.input.rotate % 180 == 0 ) {
     //   args.in.width = args.video.videoWidth;
     //   args.in.height = args.video.videoHeight;
     // } else {
@@ -270,11 +277,11 @@ async function loop() {
       args.in,
       args.inCtx,
       args.buffer,
-      model.params.input.rotate
+      model.settings.input.rotate
     )
   }
 
-  if ( !!model.params.input.mirror ) {
+  if ( !!model.settings.input.mirror ) {
     mirror(
       args.in,
       args.inCtx
@@ -396,7 +403,7 @@ async function loop() {
 /**
  * Callback function that processes results from BlazePose.
  * Draws the results onto landmarks and connectors on a canvas,
- * then sends the landmark coordinates as OSC messages in the format specified in model.params.osc.send_format
+ * then sends the landmark coordinates as OSC messages in the format specified in model.settings.osc.send_format
  * 
  * Returns if there are no landmarks.
  * 
@@ -413,7 +420,7 @@ function onResults( results ) {
 
   // model.html.canvasCtx.save();
 
-  if ( model.params.draw.segmentationMask ) {
+  if ( model.settings.draw.segmentationMask ) {
     model.html.canvasCtx.drawImage( results.segmentationMask, 0, 0,
       model.html.canvasElement.width, model.html.canvasElement.height );
   }
@@ -432,21 +439,21 @@ function onResults( results ) {
 
   // Draw connectors and landmarks
 
-  if ( model.params.draw.landmarks ) {
+  if ( model.settings.draw.landmarks ) {
     model.html.canvasCtx.globalCompositeOperation = 'source-over';
     drawUtils.drawConnectors( model.html.canvasCtx, results.poseLandmarks, Pose.POSE_CONNECTIONS,
-      { color: '#aaff00', lineWidth: model.params.draw.connectorSize } );
+      { color: '#aaff00', lineWidth: model.settings.draw.connectorSize } );
     drawUtils.drawLandmarks( model.html.canvasCtx, results.poseLandmarks,
-      { color: '#ff0000', lineWidth: model.params.draw.landmarkSize } );
+      { color: '#ff0000', lineWidth: model.settings.draw.landmarkSize } );
   }
 
   // model.html.canvasCtx.restore();
 
-  // Send OSC messages in the message rate defined in model.params.
-  if ( model.params.osc.enable && ( ( Date.now() - model.oscTimer ) > ( 1000 / model.params.osc.msgsPerSecond ) ) ) {
+  // Send OSC messages in the message rate defined in model.settings.
+  if ( model.settings.osc.enable && ( ( Date.now() - model.oscTimer ) > ( 1000 / model.settings.osc.msgsPerSecond ) ) ) {
 
-    // Send OSC through the function named as a string in model.params.
-    window[ model.params.osc.send_format ]( results, model.osc );
+    // Send OSC through the function named as a string in model.settings.
+    window[ model.settings.osc.send_format ]( results, model.osc );
     timer = Date.now();
 
   }
@@ -455,15 +462,16 @@ function onResults( results ) {
 
 // Settings
 
-function loadParams( windowId = 1, enableReadSettings = true, settingsURL = 'settings.json' ) {
+function loadSettings( windowId = 1, enableReadSettings = true, settingsURL = 'settings.json' ) {
 
-  console.log( 'loadParams called with enableRead:', enableReadSettings )
+  console.log( 'loadSettings called with enableRead:', enableReadSettings )
 
   let stockParams = {
     global: {
       id: 1,
       showStats: true,
-      enableReadSettings: false,
+      enableReadSettings: true,
+      guiWidth: 400,
     },
     input: {
       source: '',
@@ -500,30 +508,75 @@ function loadParams( windowId = 1, enableReadSettings = true, settingsURL = 'set
     windowId: windowId,
   }
 
-  if ( !enableReadSettings ) return stockParams;
+  if ( !enableReadSettings ) {
+    console.log( '[FUNC]: loadSettings() - enableReadSettings is false. Returning stock settings...'   );
+    return stockParams;
+  }
 
   //
 
   const settings = fs.readFileSync( __dirname + `/${settingsURL}`, "utf8" );
+  console.log( '[FUNC]: loadSettings() - Reading settings.json...');
   let settingsArray = [];
   let index = 0;
 
   try {
     settingsArray = JSON.parse( settings );
-    console.log( { settingsArray: settingsArray } );
+    console.log( '[FUNC]: loadSettings() - settings.json has elements.'   );
   } catch ( e ) {
-    console.log( 'Array is empty.' );
+    console.log( '[FUNC]: loadSettings() - settings.json is empty. Returning stock settings...' );
     return stockParams;
   }
 
   const foundElement = settingsArray.find( ( e ) => e.windowId === windowId );
-  if ( !foundElement )
+  if ( !foundElement ) {
+    console.log( '[FUNC]: loadSettings() - No settings found for this window ID. Returning stock settings...');
     return stockParams;
-
+  }
+  
   //
-
+  
+  console.log( '[FUNC]: loadSettings() - Found settings for this window ID. Loading...');
   return foundElement;
 
+}
+
+function saveSettings() {
+
+  const settings = fs.readFileSync( `${__dirname}/${model.settingsURL}`, "utf8" );
+
+  let settingsArray = [];
+  let index = 0;
+
+  try {
+    settingsArray = JSON.parse( settings );
+    console.log( '[FUNC]: saveSettings() - Settings on file parsed to JSON.');
+  } catch ( e ) {
+    console.log( 'Cannot parse settings into JSON.\n\n', e );
+  }
+
+  index = settingsArray.findIndex( ( e ) => e.windowId == model.settings.windowId );
+
+  // If index is not found, set index to the end of the array
+  if ( index > -1 ) {
+    console.log( '[FUNC]: saveSettings() - Window ID found in settings. Replacing element...' );
+    settingsArray[ index ] = model.settings;
+  } else {
+    console.log( '[FUNC]: saveSettings() - Window ID not found in settings. Appending new element...' );
+    settingsArray.push( model.settings );
+  }
+
+  fs.writeFile(
+    `${__dirname}/${model.settingsURL}`,
+    JSON.stringify( settingsArray, null, 2 ),
+    ( err ) => {
+      if ( err ) {
+        console.error( err )
+      } else {
+        console.log( '[FUNC]: saveSettings() - Settings saved!' );
+      }
+    }
+  );
 }
 
 // Input
@@ -582,46 +635,48 @@ async function getDevices() {
 /**
  * Generate a dat.GUI interface using supplied parameters.
  * 
- * @param {Object} params The parameters to use.
+ * @param {Object} settings The parameters to use.
  */
-function generateGUI( params ) {
+function generateGUI( settings ) {
 
-  let gui = new dat.GUI( { width: 450 });
+  let gui = new dat.GUI( { width: settings.global.guiWidth });
   
   let folderGlobal = gui.addFolder( 'Global' );
-  folderGlobal.add( params.global, 'id', 1, 10 ).name( 'ID' ).step( 1 );
-  folderGlobal.add( model, 'resetSettings' ).name( 'Reset settings.json');
-  folderGlobal.add( gui.domElement.style, 'width' ).name( 'GUI width' ).listen();
+  folderGlobal.add( settings.global, 'id', 1, 10 ).name( 'ID' ).step( 1 );
+  folderGlobal.add( settings.global, 'enableReadSettings' ).name( 'Enable read settings');
+  // folderGlobal.add( model, 'loadSettings' ).name( 'Manual read settings.json');
+  folderGlobal.add( model, 'clearSettings' ).name( 'Clear settings.json');
+  folderGlobal.add( settings.global, 'guiWidth', 250, 500 ).name( 'GUI width' ).onChange( (val) => model.gui.width = val );
 
   let folderSrc = gui.addFolder( 'Input' );
-  folderSrc.add( params.input, 'source', params.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, model.html.videoElement ) ).listen();
-  folderSrc.add( params.input, 'mirror' );
-  folderSrc.add( params.input, 'rotate', 0, 270 ).step( 90 );
+  folderSrc.add( settings.input, 'source', settings.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, model.html.videoElement ) ).listen();
+  folderSrc.add( settings.input, 'mirror' );
+  folderSrc.add( settings.input, 'rotate', 0, 270 ).step( 90 );
   folderSrc.add( model, 'addWindow' ).name( 'Add input' );
 
   let folderPose = gui.addFolder( 'Pose' );
   // { lite: 0, full: 1, heavy: 2 }
-  folderPose.add( params.pose.options, 'modelComplexity', 0, 2 ).step( 1 ).onChange( () => model.pose.setOptions( params.pose.options ) );
-  folderPose.add( params.pose.options, 'minDetectionConfidence', 0, 1 ).step( 0.01 ).onChange( () => model.pose.setOptions( params.pose.options ) );
-  folderPose.add( params.pose.options, 'minTrackingConfidence', 0, 1 ).step( 0.01 ).onChange( () => model.pose.setOptions( params.pose.options ) );
+  folderPose.add( settings.pose.options, 'modelComplexity', 0, 2 ).step( 1 ).onChange( () => model.pose.setOptions( settings.pose.options ) );
+  folderPose.add( settings.pose.options, 'minDetectionConfidence', 0, 1 ).step( 0.01 ).onChange( () => model.pose.setOptions( settings.pose.options ) );
+  folderPose.add( settings.pose.options, 'minTrackingConfidence', 0, 1 ).step( 0.01 ).onChange( () => model.pose.setOptions( settings.pose.options ) );
 
 
   let folderDraw = gui.addFolder( 'Draw' );
-  folderDraw.add( params.draw, 'segmentationMask' )
-  folderDraw.add( params.draw, 'landmarkSize', 0, 10 ).step( 1 );
-  folderDraw.add( params.draw, 'connectorSize', 0, 10 ).step( 1 );
+  folderDraw.add( settings.draw, 'segmentationMask' )
+  folderDraw.add( settings.draw, 'landmarkSize', 0, 10 ).step( 1 );
+  folderDraw.add( settings.draw, 'connectorSize', 0, 10 ).step( 1 );
 
   let folderOsc = gui.addFolder( 'OSC' );
-  folderOsc.add( params.osc, 'enable' )
-  folderOsc.add( params.osc, 'send_format', {
+  folderOsc.add( settings.osc, 'enable' )
+  folderOsc.add( settings.osc, 'send_format', {
     ADDR: 'sendPosesADDR',
     JSON: 'sendPosesJSON',
     // ARR:  'sendPosesARR',
     // XML:  'sendPosesXML'
   } )
-  folderOsc.add( params.osc, 'host' )
-  folderOsc.add( params.osc, 'port' )
-  folderOsc.add( params.osc, 'msgsPerSecond', 1, 60 ).step( 1 );
+  folderOsc.add( settings.osc, 'host' )
+  folderOsc.add( settings.osc, 'port' )
+  folderOsc.add( settings.osc, 'msgsPerSecond', 1, 60 ).step( 1 );
 
   return gui;
 
@@ -655,17 +710,19 @@ function generateAudioElement( pathToAudioFile ) {
 function generateLogContent() {
 
   const str = `
+  Version ${model.version}
+
   ID:
-  ${model.params.global.id}
+  ${model.settings.global.id}
   
   Electron window ID:
-  ${model.params.windowId}
+  ${model.settings.windowId}
 
   Camera dimensions:
   [${model.html.videoElement.videoWidth}, ${model.html.videoElement.videoHeight}]
 
   OSC sending to:
-  ${model.params.osc.host}:${model.params.osc.port}
+  ${model.settings.osc.host}:${model.settings.osc.port}
 
   Pose found:
   ${!!model.poseResults.poseLandmarks}
@@ -703,54 +760,18 @@ function onKeyPress( event ) {
 
     case 'g':
       // dat.GUI.toggleHide();
-      model.params.global.showStats = !model.params.global.showStats;
+      model.settings.global.showStats = !model.settings.global.showStats;
 
-      if ( model.params.global.showStats ) {
+      if ( model.settings.global.showStats ) {
         model.gui.show()
       } else {
         model.gui.hide()
       }
 
-      model.stats.dom.style.display = model.params.global.showStats ? "block" : "none";
-      // model.html.logElement.style.display = model.params.global.showStats ? "block" : "none";
+      model.stats.dom.style.display = model.settings.global.showStats ? "block" : "none";
+      // model.html.logElement.style.display = model.settings.global.showStats ? "block" : "none";
 
-      const settings = fs.readFileSync( __dirname + "/settings.json", "utf8" );
-
-      let settingsArray = [];
-      let index = 0;
-
-      try {
-        settingsArray = JSON.parse( settings );
-        console.log( { settingsArray: settingsArray } );
-      } catch ( e ) {
-        console.log( 'Cannot parse settings.\nError:', e );
-      }
-
-      index = settingsArray.findIndex( ( e ) => e.windowId == model.params.windowId );
-
-      // If index is not found, set index to the end of the array
-      if ( index > -1 ) {
-        settingsArray[ index ] = model.params;
-        console.log( 'id found. index is:', index )
-      } else {
-        settingsArray.push( model.params );
-      }
-
-
-
-      console.log( { beforeWrite: settingsArray } );
-
-      fs.writeFile(
-        __dirname + "/settings.json",
-        JSON.stringify( settingsArray, null, 2 ),
-        ( err ) => {
-          if ( err ) {
-            console.error( err )
-          } else {
-            // console.log( 'Parameters saved!' );
-          }
-        }
-      );
+      saveSettings();
 
       // logDOM.style.display = showStats ? "block" : "none";
       break;
@@ -898,7 +919,7 @@ function sendPosesADDR( poses, osc ) {
 }
 
 function sendPosesJSON( poses, osc ) {
-  osc.send( new OSC.Message( `/poses/json/${model.params.global.id}`, JSON.stringify( poses.poseLandmarks ) ) );
+  osc.send( new OSC.Message( `/poses/json/${model.settings.global.id}`, JSON.stringify( poses.poseLandmarks ) ) );
 }
 
 function sendPosesARR( poses, osc ) {

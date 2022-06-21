@@ -17,7 +17,7 @@ let windows = [];
 function createWindow() {
   // Create the browser window.
   let window = new BrowserWindow( {
-    width: 900,
+    width: 800,
     height: 600,
     useContentSize: true,
     resizable: true,
