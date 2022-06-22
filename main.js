@@ -31,7 +31,7 @@ function createWindow() {
   } )
 
   // and load the index.html of the app.
-  window.loadURL( 'file://' + __dirname + '/index.html' );
+  window.loadURL( path.join( 'file://', __dirname, 'index.html' ) );
 
   // Open the DevTools.
   // mainWindow.webContents.openDevTools()

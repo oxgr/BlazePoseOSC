@@ -17,6 +17,7 @@
  */
 
 const fs = require( 'fs' );
+const path = require( 'path' );
 const { ipcRenderer, remote } = require( 'electron' );
 const Pose = require( '@mediapipe/pose/pose.js' )
 const OSC = require( 'osc-js' );
@@ -37,25 +38,30 @@ loop();
 
 function init() {
 
-  model.version = '0.2.3';
+  model.version = '0.2.4';
 
   // Settings
 
   const windowId = remote.getCurrentWebContents().id
   const enableReadSettings = true;
-  model.settingsURL = 'settings.json'
+  
+  // Set settings URL based on dev or produciton build. defaultApp == development == "electron ." command.
+  model.settingsURL = remote.process.defaultApp ?
+  path.join( __dirname, 'settings.json' ) :
+    path.join( __dirname, '..', '..', 'settings.json' );
+
+    console.log( {isPackaged: remote.process.defaultApp });
 
   model.settings = loadSettings( windowId, enableReadSettings, model.settingsURL );
-  console.log( '[INIT]: Params loaded.' );
-  console.log( model.settings );
+  console.log( '[INIT]: Settings loaded.' );
+  console.log( { Settings: model.settings } );
 
   // Add global functions to an object so they can be easily used in GUI. More stable than using window[] functions.
   model.addWindow = () => ipcRenderer.send( 'addWindow' );
   model.saveSettings = () => saveSettings();
-  model.clearSettings = () => { fs.writeFileSync( `${__dirname}/${model.settingsURL}`, ''); console.log( 'settings.json cleared!' ); };
+  model.clearSettings = () => { fs.writeFileSync( model.settingsURL, ''); console.log( 'settings.json cleared!' ); };
 
   console.log( `Electron window ID: ${windowId}` );
-  console.log( model.settings );
 
 
   // HTML
@@ -87,6 +93,8 @@ function init() {
     },
   ];
 
+  model.videoLoaded = false;
+
   model.html.videoElement.onloadeddata = function () {
 
     const w = model.html.videoElement.videoWidth
@@ -99,6 +107,8 @@ function init() {
     onWindowResize( model.aspectRatio );
 
     ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
+
+    model.videoLoaded = true;
 
   }
 
@@ -150,7 +160,7 @@ function init() {
   ]
 
   // Audio playback to ensure camera keeps rendering even when window is not in focus
-  generateAudioElement( `${__dirname}/silent.mp3` );
+  generateAudioElement( path.join( __dirname, 'silent.mp3' ) );
 
   // GUI
 
@@ -258,7 +268,12 @@ async function loop() {
     pose: model.pose
   }
 
-
+  if ( !!!model.videoLoaded) {
+    model.stats.end();
+    model.html.logElement.innerHTML = 'Waiting for camera...';
+    requestAnimationFrame( loop );
+    return;
+  }
 
   args.inCtx.drawImage( args.video, 0, 0, args.in.width, args.in.height );
 
@@ -515,7 +530,7 @@ function loadSettings( windowId = 1, enableReadSettings = true, settingsURL = 's
 
   //
 
-  const settings = fs.readFileSync( __dirname + `/${settingsURL}`, "utf8" );
+  const settings = fs.readFileSync( settingsURL, "utf8" );
   console.log( '[FUNC]: loadSettings() - Reading settings.json...');
   let settingsArray = [];
   let index = 0;
@@ -543,7 +558,7 @@ function loadSettings( windowId = 1, enableReadSettings = true, settingsURL = 's
 
 function saveSettings() {
 
-  const settings = fs.readFileSync( `${__dirname}/${model.settingsURL}`, "utf8" );
+  const settings = fs.readFileSync( model.settingsURL, "utf8" );
 
   let settingsArray = [];
   let index = 0;
@@ -567,7 +582,7 @@ function saveSettings() {
   }
 
   fs.writeFile(
-    `${__dirname}/${model.settingsURL}`,
+    model.settingsURL,
     JSON.stringify( settingsArray, null, 2 ),
     ( err ) => {
       if ( err ) {
@@ -601,7 +616,9 @@ async function getStream( sourceId, element ) {
   } catch ( err ) {
 
     console.error( err );
-    alert( 'could not connect stream' );;
+    console.log( 'Could not open camera from loaded settings. Opening default camera...' );
+
+    getStream( )
 
   }
 
