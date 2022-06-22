@@ -260,6 +260,7 @@ async function init() {
   // model.camera.start();
 
   model.html.logElement.innerHTML += 'Init done!<br>';
+  model.html.logElement.innerHTML += 'Starting loop...<br>';
   loop();
 }
 
@@ -280,14 +281,6 @@ async function loop() {
   args.inCtx.drawImage( args.video, 0, 0, args.in.width, args.in.height );
 
   if ( model.settings.input.rotate != 0 ) {
-
-    // if ( model.settings.input.rotate % 180 == 0 ) {
-    //   args.in.width = args.video.videoWidth;
-    //   args.in.height = args.video.videoHeight;
-    // } else {
-    //   args.in.width = args.video.videoWidth;
-    //   args.in.height = args.video.videoWidth;
-    // }
 
     rotate(
       args.in,
@@ -311,9 +304,17 @@ async function loop() {
 
   args.outCtx.clearRect( 0, 0, args.out.width, args.out.height )
 
+  let elementToDraw = args.in;
+
   // Draw the image in the boundingBox from in to out.
+  if ( model.settings.input.freeze ) {
+    elementToDraw = args.buffer;
+  } else {
+    args.buffer.getContext( '2d' ).drawImage( args.in, 0, 0, args.buffer.width, args.buffer.height );
+  }
+
   args.outCtx.drawImage(
-    args.in,
+    elementToDraw,
     x1,
     y1,
     x2 - x1,
@@ -353,8 +354,6 @@ async function loop() {
     cornerSize,
     cornerSize,
   )
-
-
 
   // Send output element frame to BlazePose.
   await args.pose.send( { image: args.out } )
@@ -471,7 +470,7 @@ function onResults( results ) {
 
 function loadSettings( windowId = 1, enableReadSettings = true, settingsURL = 'settings.json' ) {
 
-  console.log( 'loadSettings called with enableRead:', enableReadSettings )
+  console.log( '[FUNC]: loadSettings() - called with enableRead:', enableReadSettings )
 
   let stockParams = {
     global: {
@@ -484,6 +483,7 @@ function loadSettings( windowId = 1, enableReadSettings = true, settingsURL = 's
       source: '',
       mirror: true,
       rotate: 0,
+      freeze: false,
       availableSources: {
         video: {},
         audio: {}
@@ -670,6 +670,7 @@ function generateGUI( settings ) {
       model.html.videoElement.srcObject = stream;
     })
     .listen();
+  folderSrc.add( settings.input, 'freeze' );
   folderSrc.add( settings.input, 'mirror' );
   folderSrc.add( settings.input, 'rotate', 0, 270 ).step( 90 );
   folderSrc.add( model, 'addWindow' ).name( 'Add input' );
@@ -679,7 +680,6 @@ function generateGUI( settings ) {
   folderPose.add( settings.pose.options, 'modelComplexity', 0, 2 ).step( 1 ).onChange( () => model.pose.setOptions( settings.pose.options ) );
   folderPose.add( settings.pose.options, 'minDetectionConfidence', 0, 1 ).step( 0.01 ).onChange( () => model.pose.setOptions( settings.pose.options ) );
   folderPose.add( settings.pose.options, 'minTrackingConfidence', 0, 1 ).step( 0.01 ).onChange( () => model.pose.setOptions( settings.pose.options ) );
-
 
   let folderDraw = gui.addFolder( 'Draw' );
   folderDraw.add( settings.draw, 'segmentationMask' )
@@ -734,9 +734,6 @@ function generateLogContent() {
 
   ID:
   ${model.settings.global.id}
-  
-  Electron window ID:
-  ${model.settings.windowId}
 
   Camera dimensions:
   [${model.html.videoElement.videoWidth}, ${model.html.videoElement.videoHeight}]
@@ -746,7 +743,9 @@ function generateLogContent() {
 
   Pose found:
   ${!!model.poseResults.poseLandmarks}
-  
+
+  Freeze frame:
+  ${!!model.settings.input.freeze}
   `;
 
   // Replaces line breaks with HTML line break formatting.
@@ -783,17 +782,14 @@ function onKeyPress( event ) {
       model.settings.global.showStats = !model.settings.global.showStats;
 
       if ( model.settings.global.showStats ) {
-        model.gui.show()
+        model.gui.show();
+        model.stats.dom.style.display = "block";
       } else {
-        model.gui.hide()
+        model.gui.hide();
+        model.stats.dom.style.display = "none";
+        saveSettings();
       }
 
-      model.stats.dom.style.display = model.settings.global.showStats ? "block" : "none";
-      // model.html.logElement.style.display = model.settings.global.showStats ? "block" : "none";
-
-      saveSettings();
-
-      // logDOM.style.display = showStats ? "block" : "none";
       break;
 
     case 'r':
@@ -801,6 +797,10 @@ function onKeyPress( event ) {
 
     case 'f':
       ipcRenderer.send( 'float' );
+      break;
+
+    case ' ':
+      model.settings.input.freeze = !model.settings.input.freeze;
       break;
   }
 }

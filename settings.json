@@ -1,0 +1,50 @@
+[
+  {
+    "global": {
+      "id": 1,
+      "showStats": false,
+      "enableReadSettings": false,
+      "guiWidth": 400
+    },
+    "input": {
+      "source": "bae361bb5775014dc5658bb8ec05fbba587bf9410b79e5460c0d59ebc5b99398",
+      "mirror": true,
+      "rotate": 0,
+      "freeze": false,
+      "availableSources": {
+        "video": {
+          "CamTwist (7D69:90E0)": "7427dd6f66ee2f841b8656be6273652196a66fff3ba4593976f434ee1c493dae",
+          "Iriun Webcam (nCam:era0)": "2c15bfee99bd9cefa92da46ae5f883dbee1ed6d873cae5906d30e1bddec1143b",
+          "FaceTime HD Camera (Built-in) (05ac:8510)": "bae361bb5775014dc5658bb8ec05fbba587bf9410b79e5460c0d59ebc5b99398",
+          "CamTwist (2VUY) (7D69:90E1)": "3823823cd54e8643e5a235fd53710ef271c37355f990ac187fd94433f7a5cb10",
+          "OBS Virtual Camera (m-de:vice)": "986f7572d078c3dad4061b5232e9b1e9261d0af43be6a301f11ae28472f1a152"
+        },
+        "audio": {}
+      }
+    },
+    "pose": {
+      "options": {
+        "modelComplexity": 1,
+        "smoothLandmarks": true,
+        "enableSegmentation": true,
+        "smoothSegmentation": true,
+        "minDetectionConfidence": 0.5,
+        "minTrackingConfidence": 0.5
+      }
+    },
+    "draw": {
+      "landmarks": true,
+      "segmentationMask": false,
+      "landmarkSize": 4,
+      "connectorSize": 4
+    },
+    "osc": {
+      "enable": true,
+      "send_format": "sendPosesJSON",
+      "host": "localhost",
+      "port": "9527",
+      "msgsPerSecond": 30
+    },
+    "windowId": 1
+  }
+]
