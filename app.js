@@ -33,14 +33,89 @@ const { gui } = require( 'dat.gui' );
 const model = {};
 
 init();
-loop();
 
-
-function init() {
+async function init() {
 
   model.version = '0.2.4';
+  model.initiliased = false;
+
+  model.frameCount = 0;
+
+    // HTML
+
+    model.html = {};
+
+    //// Inputs
+    model.html.videoElement = document.getElementById( 'input_video' );
+    model.html.videoCanvasElement = document.getElementById( 'input_video_canvas' );
+    model.html.videoCanvasCtx = model.html.videoCanvasElement.getContext( '2d' );
+  
+    //// Outputs
+    model.html.canvasElement = document.getElementById( 'output_canvas' );
+    model.html.canvasCtx = model.html.canvasElement.getContext( '2d' );
+  
+    model.html.buffer = document.getElementById( 'buffer_canvas' );
+  
+    model.html.logElement = document.getElementById( 'log' );
+    model.html.logElement.innerHTML += 'Initialising...<br>';
+  
+    model.boundingBox = [
+      {
+        x: 0,
+        y: 0
+      },
+      {
+        x: 1,
+        y: 1
+      },
+    ];
+  
+    model.videoLoaded = false;
+  
+    model.html.videoElement.onloadeddata = function () {
+  
+      const w = model.html.videoElement.videoWidth
+      const h = model.html.videoElement.videoHeight;
+  
+      console.log( "camera dimensions", w, h );
+  
+      model.aspectRatio = w / h;
+  
+      onWindowResize( model.aspectRatio );
+  
+      ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
+  
+      model.videoLoaded = true;
+      model.html.logElement.innerHTML += 'Video loaded!<br>';
+  
+    }
+  
+    document.body.addEventListener( "keypress", onKeyPress );
+    document.body.addEventListener( "pointerdown", onMouseDown );
+    document.body.addEventListener( "pointermove", onMouseMove );
+    document.body.addEventListener( "pointerup", onMouseUp );
+  
+    window.addEventListener( 'resize', () => onWindowResize( model.aspectRatio ) );
+  
+    model.mouse = {
+      drag: false,
+      startPos: {
+        x: 0,
+        y: 0
+      },
+      currentPos: {
+        x: 0,
+        y: 0
+      },
+      isNear: ( x, y, dist ) => {
+        return Math.abs( model.mouse.currentPos.x - x ) < dist &&
+          Math.abs( model.mouse.currentPos.y - y ) < dist
+      }
+    }
 
   // Settings
+
+  model.html.logElement.innerHTML += 'Loading settings...<br>';
 
   const windowId = remote.getCurrentWebContents().id
   const enableReadSettings = true;
@@ -53,7 +128,8 @@ function init() {
     console.log( {isPackaged: remote.process.defaultApp });
 
   model.settings = loadSettings( windowId, enableReadSettings, model.settingsURL );
-  console.log( '[INIT]: Settings loaded.' );
+  // console.log( '[INIT]: Settings loaded.' );
+  model.html.logElement.innerHTML += 'Settings loaded!<br>';
   console.log( { Settings: model.settings } );
 
   // Add global functions to an object so they can be easily used in GUI. More stable than using window[] functions.
@@ -63,80 +139,9 @@ function init() {
 
   console.log( `Electron window ID: ${windowId}` );
 
-
-  // HTML
-
-  model.html = {};
-
-  //// Inputs
-  model.html.videoElement = document.getElementById( 'input_video' );
-  model.html.videoCanvasElement = document.getElementById( 'input_video_canvas' );
-  model.html.videoCanvasCtx = model.html.videoCanvasElement.getContext( '2d' );
-
-  //// Outputs
-  model.html.canvasElement = document.getElementById( 'output_canvas' );
-  model.html.canvasCtx = model.html.canvasElement.getContext( '2d' );
-
-  model.html.buffer = document.getElementById( 'buffer_canvas' );
-
-  model.html.logElement = document.getElementById( 'log' );
-  model.html.logElement.innerHTML = `Loading...`;
-
-  model.boundingBox = [
-    {
-      x: 0,
-      y: 0
-    },
-    {
-      x: 1,
-      y: 1
-    },
-  ];
-
-  model.videoLoaded = false;
-
-  model.html.videoElement.onloadeddata = function () {
-
-    const w = model.html.videoElement.videoWidth
-    const h = model.html.videoElement.videoHeight;
-
-    console.log( "camera dimensions", w, h );
-
-    model.aspectRatio = w / h;
-
-    onWindowResize( model.aspectRatio );
-
-    ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
-
-    model.videoLoaded = true;
-
-  }
-
-  document.body.addEventListener( "keypress", onKeyPress );
-  document.body.addEventListener( "pointerdown", onMouseDown );
-  document.body.addEventListener( "pointermove", onMouseMove );
-  document.body.addEventListener( "pointerup", onMouseUp );
-
-  window.addEventListener( 'resize', () => onWindowResize( model.aspectRatio ) );
-
-  model.mouse = {
-    drag: false,
-    startPos: {
-      x: 0,
-      y: 0
-    },
-    currentPos: {
-      x: 0,
-      y: 0
-    },
-    isNear: ( x, y, dist ) => {
-      return Math.abs( model.mouse.currentPos.x - x ) < dist &&
-        Math.abs( model.mouse.currentPos.y - y ) < dist
-    }
-  }
-
   // OSC
 
+  model.html.logElement.innerHTML += 'Opening OSC...<br>';
   model.osc = openOSC( model.settings.osc.host, model.settings.osc.port );
   model.oscTimer = Date.now();
 
@@ -159,27 +164,31 @@ function init() {
     'left_foot_index', 'right_foot_index'
   ]
 
+  model.html.logElement.innerHTML += 'Generating audio element...<br>';
   // Audio playback to ensure camera keeps rendering even when window is not in focus
   generateAudioElement( path.join( __dirname, 'silent.mp3' ) );
-
-  // GUI
-
-  ( async () => {
-    await getStream( model.settings.input.source, model.html.videoElement );
-    model.settings.input.availableSources.video = await getDevices();
-    model.gui = generateGUI( model.settings );
-    // model.gui.domElement.style.width = '400px'
-    model.gui.close();
-  } )()
-
+  
   // Stats
 
+  model.html.logElement.innerHTML += 'Generating stats...<br>';
   model.stats = new Stats();
   model.stats.showPanel( 0 );
   document.body.appendChild( model.stats.dom );
 
+  // GUI
+
+  model.html.logElement.innerHTML += 'Getting source devices...<br>';
+  model.settings.input.availableSources.video = await getDevices();
+  model.html.logElement.innerHTML += 'Setting media stream...<br>';
+  model.html.videoElement.srcObject = await getStream( model.settings.input.source );
+  model.html.logElement.innerHTML += 'Generating GUI...<br>';
+  model.gui = generateGUI( model.settings );
+  // model.gui.domElement.style.width = '400px'
+  model.gui.close();
+
   // BlazePose
 
+  model.html.logElement.innerHTML += 'Initialising BlazePose...<br>';
   model.pose = new Pose.Pose( {
     locateFile: ( file ) => {
       return `${__dirname}/node_modules/@mediapipe/pose/${file}`;
@@ -252,9 +261,15 @@ function init() {
   // } );
 
   // model.camera.start();
+
+  model.initialised = true;
+  model.html.logElement.innerHTML += 'Init done!<br>';
+  loop();
 }
 
 async function loop() {
+
+  model.frameCount++;
 
   model.stats.begin();
 
@@ -266,13 +281,6 @@ async function loop() {
     outCtx: model.html.canvasCtx,
     buffer: model.html.buffer,
     pose: model.pose
-  }
-
-  if ( !!!model.videoLoaded) {
-    model.stats.end();
-    model.html.logElement.innerHTML = 'Waiting for camera...';
-    requestAnimationFrame( loop );
-    return;
   }
 
   args.inCtx.drawImage( args.video, 0, 0, args.in.width, args.in.height );
@@ -599,7 +607,7 @@ function saveSettings() {
 /**
  * Gets stream from source, sets it to element.
  * */
-async function getStream( sourceId, element ) {
+async function getStream( sourceId ) {
   if ( window.stream ) {
     window.stream.getTracks().forEach( track => track.stop() );
   }
@@ -608,21 +616,25 @@ async function getStream( sourceId, element ) {
     video: { deviceId: sourceId ? { ideal: sourceId } : undefined }
   };
 
+  let stream;
+
   try {
 
-    const stream = await navigator.mediaDevices.getUserMedia( constraints );
-    element.srcObject = stream;
+    stream = await navigator.mediaDevices.getUserMedia( constraints );
 
   } catch ( err ) {
 
     console.error( err );
     console.log( 'Could not open camera from loaded settings. Opening default camera...' );
 
-    getStream( )
+    // Get the first enumerable key from availableSources and grab the value of that.
+    const defaultSourceId = model.settings.input.availableSources[ Object.keys( model.settings.input.availableSources )[0] ];
+
+    stream = getStream( defaultSourceId )
 
   }
 
-  return false;
+  return stream;
 
 }
 
@@ -666,7 +678,14 @@ function generateGUI( settings ) {
   folderGlobal.add( settings.global, 'guiWidth', 250, 500 ).name( 'GUI width' ).onChange( (val) => model.gui.width = val );
 
   let folderSrc = gui.addFolder( 'Input' );
-  folderSrc.add( settings.input, 'source', settings.input.availableSources.video ).name( 'Input Source' ).onChange( ( source ) => getStream( source, model.html.videoElement ) ).listen();
+  folderSrc.add( settings.input, 'source', settings.input.availableSources.video )
+    .name( 'Input Source' )
+    .onChange( async ( sourceId ) => {
+      const stream = await getStream( sourceId );
+      console.log( stream );
+      model.html.videoElement.srcObject = stream;
+    })
+    .listen();
   folderSrc.add( settings.input, 'mirror' );
   folderSrc.add( settings.input, 'rotate', 0, 270 ).step( 90 );
   folderSrc.add( model, 'addWindow' ).name( 'Add input' );
@@ -974,3 +993,9 @@ function sendPosesXML( poses, osc ) {
   osc.send( new OSC.Message( "/poses/xml", result ) );
 }
 
+function println( str ) {
+
+  model.html.logElement.innerHTML += str;
+  model.html.logElement.innerHTML += '<br>';
+
+}
