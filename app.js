@@ -37,9 +37,6 @@ init();
 async function init() {
 
   model.version = '0.2.4';
-  model.initiliased = false;
-
-  model.frameCount = 0;
 
     // HTML
 
@@ -262,14 +259,11 @@ async function init() {
 
   // model.camera.start();
 
-  model.initialised = true;
   model.html.logElement.innerHTML += 'Init done!<br>';
   loop();
 }
 
 async function loop() {
-
-  model.frameCount++;
 
   model.stats.begin();
 
@@ -284,7 +278,6 @@ async function loop() {
   }
 
   args.inCtx.drawImage( args.video, 0, 0, args.in.width, args.in.height );
-
 
   if ( model.settings.input.rotate != 0 ) {
 
@@ -394,9 +387,14 @@ async function loop() {
     context.translate( x, y );
     context.rotate( angleInRadians );
 
-    // Draw video frame to output canvas context
-    const ratioHeight = h / model.aspectRatio;
-    context.drawImage( buffer, - ( h * 0.5 ), - ( ratioHeight * 0.5 ), h, ratioHeight  );
+    // Draw video frame to output canvas context.
+    // Sizing based on whether it's landscape or portrait.
+    if ( angle % 180 === 0 ) {
+      context.drawImage( buffer, - w * 0.5, - h * 0.5, w, h )
+    } else {
+      const ratioHeight = h / model.aspectRatio;
+      context.drawImage( buffer, - ( h * 0.5 ), - ( ratioHeight * 0.5 ), h, ratioHeight  );
+    }
 
     // Revert global changes to context
     context.rotate( -angleInRadians );
@@ -448,18 +446,6 @@ function onResults( results ) {
       model.html.canvasElement.width, model.html.canvasElement.height );
   }
 
-  // Some code from example that draws a mask. Don't really understand what it's doing.
-
-  // Only overwrite existing pixels.
-  // model.html.canvasCtx.globalCompositeOperation = 'source-in';
-  // model.html.canvasCtx.fillStyle = '#0000ff';
-  // model.html.canvasCtx.fillRect( 0, 0, model.html.canvasElement.width, model.html.canvasElement.height );
-
-  // // Only overwrite missing pixels.
-  // model.html.canvasCtx.globalCompositeOperation = 'destination-atop';
-  // model.html.canvasCtx.drawImage(
-  //   results.image, 0, 0, model.html.canvasElement.width, model.html.canvasElement.height );
-
   // Draw connectors and landmarks
 
   if ( model.settings.draw.landmarks ) {
@@ -469,8 +455,6 @@ function onResults( results ) {
     drawUtils.drawLandmarks( model.html.canvasCtx, results.poseLandmarks,
       { color: '#ff0000', lineWidth: model.settings.draw.landmarkSize } );
   }
-
-  // model.html.canvasCtx.restore();
 
   // Send OSC messages in the message rate defined in model.settings.
   if ( model.settings.osc.enable && ( ( Date.now() - model.oscTimer ) > ( 1000 / model.settings.osc.msgsPerSecond ) ) ) {
