@@ -3,14 +3,15 @@
     "global": {
       "id": 1,
       "showStats": false,
-      "enableReadSettings": false,
+      "enableReadSettings": true,
       "guiWidth": 400
     },
     "input": {
       "source": "bae361bb5775014dc5658bb8ec05fbba587bf9410b79e5460c0d59ebc5b99398",
+      "freeze": false,
       "mirror": true,
       "rotate": 0,
-      "freeze": false,
+      "tilt": 1,
       "availableSources": {
         "video": {
           "CamTwist (7D69:90E0)": "7427dd6f66ee2f841b8656be6273652196a66fff3ba4593976f434ee1c493dae",

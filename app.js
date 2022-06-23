@@ -297,6 +297,15 @@ async function loop() {
     );
   }
 
+  if ( model.settings.input.tilt != 0 ) {
+    tilt(
+      args.in,
+      args.inCtx,
+      args.buffer,
+      model.settings.input.tilt
+    )
+  }
+
   const x1 = model.boundingBox[ 0 ].x * args.in.width;
   const y1 = model.boundingBox[ 0 ].y * args.in.height;
   const x2 = model.boundingBox[ 1 ].x * args.in.width;
@@ -418,6 +427,34 @@ async function loop() {
 
   }
 
+  function tilt( element, context, buffer, delta ) {
+
+    // delta = -1 to 1
+
+    // now delta is 0 to 2;
+    const deltaTwo = delta + 1;
+
+    const w = element.width;
+    const h = element.height;
+
+    buffer.getContext( '2d' ).drawImage( element, 0, 0, w, h );
+    context.clearRect( 0, 0, w, h );
+
+    const center = w * 0.5;
+    const maxWidth = deltaTwo * w;
+
+    for ( let y = 0; y < h; y++ ) {
+
+      // Inverted ratio = 0 to 1
+      const yRatio = 1 - ( y / h );
+      const yWidth = w - ( maxWidth * yRatio * deltaTwo );
+      const sx = center - ( yWidth * 0.5 );
+      context.drawImage( buffer, 0, y, w, 1, sx, y, yWidth, 1 );
+
+    }
+
+  }
+
 }
 
 /**
@@ -481,9 +518,10 @@ function loadSettings( windowId = 1, enableReadSettings = true, settingsURL = 's
     },
     input: {
       source: '',
+      freeze: false,
       mirror: true,
       rotate: 0,
-      freeze: false,
+      tilt: 1,
       availableSources: {
         video: {},
         audio: {}
@@ -670,9 +708,10 @@ function generateGUI( settings ) {
       model.html.videoElement.srcObject = stream;
     })
     .listen();
-  folderSrc.add( settings.input, 'freeze' );
-  folderSrc.add( settings.input, 'mirror' );
+    folderSrc.add( settings.input, 'freeze' );
+    folderSrc.add( settings.input, 'mirror' );
   folderSrc.add( settings.input, 'rotate', 0, 270 ).step( 90 );
+  folderSrc.add( settings.input, 'tilt', -1, 1 ).step( 0.001 );
   folderSrc.add( model, 'addWindow' ).name( 'Add input' );
 
   let folderPose = gui.addFolder( 'Pose' );
@@ -940,6 +979,7 @@ function sendPosesADDR( poses, osc ) {
 
 function sendPosesJSON( poses, osc ) {
   osc.send( new OSC.Message( `/poses/json/${model.settings.global.id}`, JSON.stringify( poses.poseLandmarks ) ) );
+  osc.send( new OSC.Message( `/poses/jsonWorld/${model.settings.global.id}`, JSON.stringify( poses.poseLandmarks ) ) );
 }
 
 function sendPosesARR( poses, osc ) {
