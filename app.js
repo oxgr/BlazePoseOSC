@@ -181,6 +181,7 @@ async function init() {
 
   println( 'Getting source devices...' );
   model.settings.input.availableSources.video = await getDevices();
+  console.log( { availSourcesVideo: model.settings.input.availableSources.video })
   println( 'Setting media stream...' );
   model.html.videoElement.srcObject = await getStream( model.settings.input.source );
   println( 'Generating GUI...' );
@@ -747,7 +748,8 @@ async function getStream( sourceId ) {
   }
 
   const constraints = {
-    video: { deviceId: sourceId ? { ideal: sourceId } : undefined }
+    // video: { deviceId: sourceId ? { ideal: sourceId } : undefined }
+    video: { deviceId: sourceId }
   };
 
   let stream;
@@ -760,11 +762,16 @@ async function getStream( sourceId ) {
 
     console.error( err );
     console.log( 'Could not open camera from loaded settings. Opening default camera...' );
+    
+    const sourceIdArray = Object.values( model.settings.input.availableSources.video )[0]
+
+    console.log( { sourceIdArray: sourceIdArray } );
 
     // Get the first enumerable key from availableSources and grab the value of that.
-    const defaultSourceId = model.settings.input.availableSources[ Object.keys( model.settings.input.availableSources )[0] ];
+    // const defaultSourceId = model.settings.input.availableSources[ sourceIdArray[0] ];
+    const defaultSourceId = sourceIdArray[0];
 
-    stream = getStream( defaultSourceId )
+    stream = getStream( defaultSourceId );
 
   }
 
