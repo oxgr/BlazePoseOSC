@@ -280,6 +280,14 @@ async function init() {
     renderer.setSize( window.innerWidth * 0.5, window.innerHeight * 0.5 );
     model.html.viewerElement.appendChild( renderer.domElement );
 
+    const clock = new THREE.Clock();
+    clock.start();
+
+    // const light = new THREE.AmbientLight( 0xffffff );
+    // scene.add( light );
+    const light = new THREE.HemisphereLight( 0xffffbb, 0x080820, 1 );
+    scene.add( light );
+
     scene.background = new THREE.Color( 0xffffff );
     scene.add( new THREE.GridHelper( 20, 20 ))
 
@@ -291,34 +299,50 @@ async function init() {
     objects.cube.position.x = 5;
     scene.add( objects.cube );
 
+
     const sphereGeo = new THREE.SphereGeometry( 0.2 );
 
     // console.log( { arrayTest: Array( 10 ).fill( { k: 'v' } ) } )
 
-    objects.posePoints = [];
-
     model.pose.landmarkCount = 33;
-    for ( let i = 0; i < model.pose.landmarkCount; i++ ) {
-      objects.posePoints[ i ] = new THREE.Mesh( sphereGeo, normalMat);
-      scene.add( objects.posePoints[ i ] );
-    }
+    objects.poses = [];
+    objects.poses.push( ( ( scene, color, landmarksSource ) => {
 
-    const lineMat = new THREE.LineBasicMaterial( { color: 0x0000ff } );
-    
-    const points = [];
+      const colorMat = new THREE.MeshStandardMaterial( { color: color } );
 
-    for ( let i = 0; i < Pose.POSE_CONNECTIONS.length; i++ ) {
+      const posePoints = [];
+  
+      for ( let i = 0; i < model.pose.landmarkCount; i++ ) {
+        posePoints[ i ] = new THREE.Mesh( sphereGeo, colorMat );
+        scene.add( posePoints[ i ] );
+      }
+  
+      const lineMat = new THREE.LineBasicMaterial( { color: 0x0000ff } );
       
-      points.push( new THREE.Vector3() );
-      points.push( new THREE.Vector3() );
+      const points = [];
+  
+      for ( let i = 0; i < Pose.POSE_CONNECTIONS.length; i++ ) {
+        
+        points.push( new THREE.Vector3() );
+        points.push( new THREE.Vector3() );
+  
+      }    
 
-    }    
+      const lineGeo = new THREE.BufferGeometry().setFromPoints( points );
+  
+      const lines = new THREE.LineSegments( lineGeo, lineMat );
+      scene.add( lines );
 
-    const lineGeo = new THREE.BufferGeometry().setFromPoints( points );
+      return {
+        posePoints: posePoints,
+        lines: lines,
+        landmarksSource: landmarksSource
+      }
 
-    objects.lines = new THREE.LineSegments( lineGeo, lineMat );
+    })( scene, 0xff0000, 'self' ) );
+    
 
-    scene.add( objects.lines );
+
 
     
     // for ( let p of objects.posePoints ) {
@@ -337,6 +361,7 @@ async function init() {
       scene: scene,
       camera: camera,
       renderer: renderer,
+      clock: clock,
       objects: objects,
     }
 
@@ -444,61 +469,74 @@ async function loop() {
 
   // Viewer
 
-  if ( model.poseResults.poseLandmarks ) {
-
-    let i = 0;
-    let scale = -4;
-    let yOffset = 2;
-
-    const pwl = model.poseResults.poseWorldLandmarks;
-    const m = [];
-    const pp = model.viewer.objects.posePoints;
+  viewerLoop();
+  
+  function viewerLoop() {
     
-    // Adjusting original values to scene proportions to dummy array
-    for ( let i = 0; i < pwl.length; i++ ) {
+    if ( model.poseResults.poseLandmarks ) {
+  
+      model.viewer.objects.poses.forEach( ( pose ) => {
+        
+        let i = 0;
+        let scale = -4;
+        let yOffset = 2;
+    
+        const pwl = pose.landmarksSource == 'self' ? model.poseResults.poseLandmarks : [];
+        const m = [];
+        const pp = pose.posePoints;
+        
+        // Adjusting original values to scene proportions to dummy array
+        for ( let i = 0; i < pwl.length; i++ ) {
+    
+          m[ i ] = {};
+    
+          m[ i ].x = ( pwl[ i ].x * scale );
+          m[ i ].y = ( pwl[ i ].y * scale ) + yOffset;
+          m[ i ].z = ( pwl[ i ].z * scale );
+    
+        }
+    
+        // Assign dummy array values to posePoints positions.
+        for ( let i = 0; i < pp.length; i++ ) {
+    
+          pp[ i ].position.x = m[ i ].x;
+          pp[ i ].position.y = m[ i ].y;
+          pp[ i ].position.z = m[ i ].z;
+    
+        }
+    
+        // for ( let i = 0; i < Pose.POSE_CONNECTIONS.length; i++ ) {
+    
+        //   const lp = model.viewer.objects.lines.geometry.attributes.position;
+        //   const l1 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 0 ] ];
+        //   const l2 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 1 ] ];
+    
+        //   const j = i * 6;
+    
+        //   lp[ j ] = l1.x;
+        //   lp[ j + 1] = l1.y;
+        //   lp[ j + 2] = l1.z;
+        //   lp[ j + 3] = l2.x;
+        //   lp[ j + 4] = l2.y;
+        //   lp[ j + 5] = l2.z;
+    
+        // }
 
-      m[ i ] = {};
-
-      m[ i ].x = ( pwl[ i ].x * scale );
-      m[ i ].y = ( pwl[ i ].y * scale ) + yOffset;
-      m[ i ].z = ( pwl[ i ].z * scale );
-
+      })
+  
     }
-
-    // Assign dummy array values to posePoints positions.
-    for ( let i = 0; i < pp.length; i++ ) {
-
-      pp[ i ].position.x = m[ i ].x;
-      pp[ i ].position.y = m[ i ].y;
-      pp[ i ].position.z = m[ i ].z;
-
-    }
-
-    for ( let i = 0; i < Pose.POSE_CONNECTIONS.length; i++ ) {
-
-      const lp = model.viewer.objects.lines.geometry.attributes.position;
-      const l1 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 0 ] ];
-      const l2 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 1 ] ];
-
-      const j = i * 6;
-
-      lp[ j ] = l1.x;
-      lp[ j + 1] = l1.y;
-      lp[ j + 2] = l1.z;
-      lp[ j + 3] = l2.x;
-      lp[ j + 4] = l2.y;
-      lp[ j + 5] = l2.z;
-
-    }
+  
+    model.viewer.objects.cube.rotateX( 0.01 );
+    model.viewer.objects.cube.rotateY( 0.02 );
+  
+    model.viewer.delta = model.viewer.clock.getDelta();
+    model.viewer.speed = 0.2;
+  
+    model.viewer.scene.rotateY( model.viewer.delta * model.viewer.speed );
+  
+    model.viewer.renderer.render( model.viewer.scene, model.viewer.camera )
 
   }
-
-  model.viewer.objects.cube.rotateX( 0.01 );
-  model.viewer.objects.cube.rotateY( 0.02 );
-
-  model.viewer.scene.rotateY( 0.02 );
-
-  model.viewer.renderer.render( model.viewer.scene, model.viewer.camera )
 
   //
 
