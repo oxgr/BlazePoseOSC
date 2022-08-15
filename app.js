@@ -26,6 +26,8 @@ const Stats = require( 'stats.js' );
 const { Camera } = require( '@mediapipe/camera_utils' );
 const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' );
 const { gui } = require( 'dat.gui' );
+const THREE = require( 'three' );
+// import OrbitControls from `${__dirname}/three/examples/jsm/controls/OrbitControls.js`;
 //const mediaStream = require('media-stream-library');
 //const MjpegCamera = require('mjpeg-camera');
 // const { pipelines, isRtcpBye } = window.mediaStreamLibrary
@@ -38,81 +40,84 @@ async function init() {
 
   model.version = '0.2.4';
 
-    // HTML
+  // HTML
 
-    model.html = {};
+  model.html = {};
 
-    //// Inputs
-    model.html.videoElement = document.getElementById( 'input_video' );
-    model.html.videoCanvasElement = document.getElementById( 'input_video_canvas' );
-    model.html.videoCanvasCtx = model.html.videoCanvasElement.getContext( '2d' );
-  
-    //// Outputs
-    model.html.canvasElement = document.getElementById( 'output_canvas' );
-    model.html.canvasCtx = model.html.canvasElement.getContext( '2d' );
-  
-    model.html.buffer = document.getElementById( 'buffer_canvas' );
-  
-    model.html.logElement = document.getElementById( 'log' );
-    model.html.logElement.innerHTML += 'Initialising...<br>';
-  
-    model.boundingBox = [
-      {
-        x: 0,
-        y: 0
-      },
-      {
-        x: 1,
-        y: 1
-      },
-    ];
-  
-    model.videoLoaded = false;
-  
-    model.html.videoElement.onloadeddata = function () {
-  
-      const w = model.html.videoElement.videoWidth
-      const h = model.html.videoElement.videoHeight;
-  
-      console.log( "camera dimensions", w, h );
-  
-      model.aspectRatio = w / h;
-  
-      onWindowResize( model.aspectRatio );
-  
-      ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
-  
-      model.videoLoaded = true;
-      model.html.logElement.innerHTML += 'Video loaded!<br>';
-  
+  //// Inputs
+  model.html.videoElement = document.getElementById( 'input_video' );
+  model.html.videoCanvasElement = document.getElementById( 'input_video_canvas' );
+  model.html.videoCanvasCtx = model.html.videoCanvasElement.getContext( '2d' );
+
+  //// Outputs
+  model.html.buffer = document.getElementById( 'buffer_canvas' );
+
+  model.html.canvasElement = document.getElementById( 'output_canvas' );
+  model.html.canvasCtx = model.html.canvasElement.getContext( '2d' );
+
+  model.html.viewerElement = document.getElementById( 'viewer_container' );
+
+  model.html.logElement = document.getElementById( 'log' );
+  println( 'Initialising...' )
+  // println( 'Initialising...' );
+
+  model.boundingBox = [
+    {
+      x: 0,
+      y: 0
+    },
+    {
+      x: 1,
+      y: 1
+    },
+  ];
+
+  model.videoLoaded = false;
+
+  model.html.videoElement.onloadeddata = function () {
+
+    const w = model.html.videoElement.videoWidth
+    const h = model.html.videoElement.videoHeight;
+
+    console.log( "camera dimensions", w, h );
+
+    model.aspectRatio = w / h;
+
+    onWindowResize( model.aspectRatio );
+
+    ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
+
+    model.videoLoaded = true;
+    println( 'Video loaded!' );
+
+  }
+
+  document.body.addEventListener( "keypress", onKeyPress );
+  document.body.addEventListener( "pointerdown", onMouseDown );
+  document.body.addEventListener( "pointermove", onMouseMove );
+  document.body.addEventListener( "pointerup", onMouseUp );
+
+  window.addEventListener( 'resize', () => onWindowResize( model.aspectRatio ) );
+
+  model.mouse = {
+    drag: false,
+    startPos: {
+      x: 0,
+      y: 0
+    },
+    currentPos: {
+      x: 0,
+      y: 0
+    },
+    isNear: ( x, y, dist ) => {
+      return Math.abs( model.mouse.currentPos.x - x ) < dist &&
+        Math.abs( model.mouse.currentPos.y - y ) < dist
     }
-  
-    document.body.addEventListener( "keypress", onKeyPress );
-    document.body.addEventListener( "pointerdown", onMouseDown );
-    document.body.addEventListener( "pointermove", onMouseMove );
-    document.body.addEventListener( "pointerup", onMouseUp );
-  
-    window.addEventListener( 'resize', () => onWindowResize( model.aspectRatio ) );
-  
-    model.mouse = {
-      drag: false,
-      startPos: {
-        x: 0,
-        y: 0
-      },
-      currentPos: {
-        x: 0,
-        y: 0
-      },
-      isNear: ( x, y, dist ) => {
-        return Math.abs( model.mouse.currentPos.x - x ) < dist &&
-          Math.abs( model.mouse.currentPos.y - y ) < dist
-      }
-    }
+  }
 
   // Settings
 
-  model.html.logElement.innerHTML += 'Loading settings...<br>';
+  println( 'Loading settings...' );
 
   const windowId = remote.getCurrentWebContents().id
   const enableReadSettings = true;
@@ -126,7 +131,7 @@ async function init() {
 
   model.settings = loadSettings( windowId, enableReadSettings, model.settingsURL );
   // console.log( '[INIT]: Settings loaded.' );
-  model.html.logElement.innerHTML += 'Settings loaded!<br>';
+  println( 'Settings loaded!' );
   console.log( { Settings: model.settings } );
 
   // Add global functions to an object so they can be easily used in GUI. More stable than using window[] functions.
@@ -138,7 +143,7 @@ async function init() {
 
   // OSC
 
-  model.html.logElement.innerHTML += 'Opening OSC...<br>';
+  println( 'Opening OSC...' )
   model.osc = openOSC( model.settings.osc.host, model.settings.osc.port );
   model.oscTimer = Date.now();
 
@@ -161,31 +166,31 @@ async function init() {
     'left_foot_index', 'right_foot_index'
   ]
 
-  model.html.logElement.innerHTML += 'Generating audio element...<br>';
+  println( 'Generating audio element...' );
   // Audio playback to ensure camera keeps rendering even when window is not in focus
   generateAudioElement( path.join( __dirname, 'silent.mp3' ) );
   
   // Stats
 
-  model.html.logElement.innerHTML += 'Generating stats...<br>';
+  println( 'Generating stats...' );
   model.stats = new Stats();
   model.stats.showPanel( 0 );
   document.body.appendChild( model.stats.dom );
 
   // GUI
 
-  model.html.logElement.innerHTML += 'Getting source devices...<br>';
+  println( 'Getting source devices...' );
   model.settings.input.availableSources.video = await getDevices();
-  model.html.logElement.innerHTML += 'Setting media stream...<br>';
+  println( 'Setting media stream...' );
   model.html.videoElement.srcObject = await getStream( model.settings.input.source );
-  model.html.logElement.innerHTML += 'Generating GUI...<br>';
+  println( 'Generating GUI...' );
   model.gui = generateGUI( model.settings );
   // model.gui.domElement.style.width = '400px'
   model.gui.close();
 
   // BlazePose
 
-  model.html.logElement.innerHTML += 'Initialising BlazePose...<br>';
+  println( 'Initialising BlazePose...' );
   model.pose = new Pose.Pose( {
     locateFile: ( file ) => {
       return `${__dirname}/node_modules/@mediapipe/pose/${file}`;
@@ -259,8 +264,86 @@ async function init() {
 
   // model.camera.start();
 
-  model.html.logElement.innerHTML += 'Init done!<br>';
-  model.html.logElement.innerHTML += 'Starting loop...<br>';
+  // Viewer
+
+  model.viewer = ( () => {
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+    camera.position.x = 3;
+    camera.position.y = 5;
+    camera.position.z = 5;
+    camera.lookAt( 0, 2, 0 );
+  
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize( window.innerWidth * 0.5, window.innerHeight * 0.5 );
+    model.html.viewerElement.appendChild( renderer.domElement );
+
+    scene.background = new THREE.Color( 0xffffff );
+    scene.add( new THREE.GridHelper( 20, 20 ))
+
+    const objects = {};
+  
+    const boxGeo = new THREE.BoxGeometry( 1, 1, 1 );
+    const normalMat = new THREE.MeshNormalMaterial();
+    objects.cube = new THREE.Mesh( boxGeo, normalMat );
+    objects.cube.position.x = 5;
+    scene.add( objects.cube );
+
+    const sphereGeo = new THREE.SphereGeometry( 0.2 );
+
+    // console.log( { arrayTest: Array( 10 ).fill( { k: 'v' } ) } )
+
+    objects.posePoints = [];
+
+    model.pose.landmarkCount = 33;
+    for ( let i = 0; i < model.pose.landmarkCount; i++ ) {
+      objects.posePoints[ i ] = new THREE.Mesh( sphereGeo, normalMat);
+      scene.add( objects.posePoints[ i ] );
+    }
+
+    const lineMat = new THREE.LineBasicMaterial( { color: 0x0000ff } );
+    
+    const points = [];
+
+    for ( let i = 0; i < Pose.POSE_CONNECTIONS.length; i++ ) {
+      
+      points.push( new THREE.Vector3() );
+      points.push( new THREE.Vector3() );
+
+    }    
+
+    const lineGeo = new THREE.BufferGeometry().setFromPoints( points );
+
+    objects.lines = new THREE.LineSegments( lineGeo, lineMat );
+
+    scene.add( objects.lines );
+
+    
+    // for ( let p of objects.posePoints ) {
+    //   // e = new THREE.Mesh( sphereGeo, normalMat);
+    //   p.position.x = ( Math.random() - 0.5 ) * 5;
+    //   p.position.y = ( Math.random() - 0.5 ) * 5;
+    //   p.position.z = ( Math.random() - 0.5 ) * 5;
+
+    //   scene.add( p );
+
+    // }
+      
+    console.log( { posePoints: objects.posePoints } );
+
+    return { 
+      scene: scene,
+      camera: camera,
+      renderer: renderer,
+      objects: objects,
+    }
+
+  })()
+
+  println( 'Init done!' );
+  println( 'Starting loop...' );
+
   loop();
 }
 
@@ -356,7 +439,67 @@ async function loop() {
   )
 
   // Send output element frame to BlazePose.
-  await args.pose.send( { image: args.out } )
+  await args.pose.send( { image: args.out } );
+
+  // Viewer
+
+  if ( model.poseResults.poseLandmarks ) {
+
+    let i = 0;
+    let scale = -4;
+    let yOffset = 2;
+
+    const pwl = model.poseResults.poseWorldLandmarks;
+    const m = [];
+    const pp = model.viewer.objects.posePoints;
+    
+    // Adjusting original values to scene proportions to dummy array
+    for ( let i = 0; i < pwl.length; i++ ) {
+
+      m[ i ] = {};
+
+      m[ i ].x = ( pwl[ i ].x * scale );
+      m[ i ].y = ( pwl[ i ].y * scale ) + yOffset;
+      m[ i ].z = ( pwl[ i ].z * scale );
+
+    }
+
+    // Assign dummy array values to posePoints positions.
+    for ( let i = 0; i < pp.length; i++ ) {
+
+      pp[ i ].position.x = m[ i ].x;
+      pp[ i ].position.y = m[ i ].y;
+      pp[ i ].position.z = m[ i ].z;
+
+    }
+
+    for ( let i = 0; i < Pose.POSE_CONNECTIONS.length; i++ ) {
+
+      const lp = model.viewer.objects.lines.geometry.attributes.position;
+      const l1 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 0 ] ];
+      const l2 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 1 ] ];
+
+      const j = i * 6;
+
+      lp[ j ] = l1.x;
+      lp[ j + 1] = l1.y;
+      lp[ j + 2] = l1.z;
+      lp[ j + 3] = l2.x;
+      lp[ j + 4] = l2.y;
+      lp[ j + 5] = l2.z;
+
+    }
+
+  }
+
+  model.viewer.objects.cube.rotateX( 0.01 );
+  model.viewer.objects.cube.rotateY( 0.02 );
+
+  model.viewer.scene.rotateY( 0.02 );
+
+  model.viewer.renderer.render( model.viewer.scene, model.viewer.camera )
+
+  //
 
   // Log info to HTML DOM Element
   model.html.logElement.innerHTML = generateLogContent( model );
@@ -456,11 +599,18 @@ function onResults( results ) {
   }
 
   // Send OSC messages in the message rate defined in model.settings.
-  if ( model.settings.osc.enable && ( ( Date.now() - model.oscTimer ) > ( 1000 / model.settings.osc.msgsPerSecond ) ) ) {
+  if ( model.settings.osc.enable &&
+     ( ( Date.now() - model.oscTimer ) > ( 1000 / model.settings.osc.msgsPerSecond ) ) ) {
 
+    // console.log( { sendFormat: model.settings.osc.send_format } );
+    
     // Send OSC through the function named as a string in model.settings.
-    window[ model.settings.osc.send_format ]( results, model.osc );
-    timer = Date.now();
+    try {
+      window[ model.settings.osc.send_format ]( results, model.osc );
+    } catch ( e ) {
+      
+    }
+    model.oscTimer = Date.now();
 
   }
 
@@ -752,6 +902,7 @@ function generateLogContent() {
   let lines = str.split( '\n' );
   lines.splice( 0, 1 );               // And splices the top and bottom line breaks so editing can stay pretty.
   lines.splice( lines.length - 1, 1 );
+  // lines.forEach( ( e, i ) => { if ( i % 3 == 0 ) e = '<b>' + e + '</b>' } );
   let log = lines.join( '<br>' );
 
   return log;
@@ -774,6 +925,10 @@ function onKeyPress( event ) {
         pose: model.pose,
         results: model.poseResults,
         gui:model.gui,
+        scene: model.viewer.scene,
+        camera: model.viewer.camera,
+        connections: Pose.POSE_CONNECTIONS,
+        keypointNames: model.keypointNames,
       } );
       break;
 
@@ -896,6 +1051,12 @@ function onWindowResize( ratio ) {
   model.html.buffer.width  = targetW;
   model.html.buffer.height = targetH;
 
+  model.html.viewerElement.width = halfDW;
+  model.html.viewerElement.height = halfDH;
+  model.viewer.renderer.setSize( halfDW, halfDH );
+  // if ( model.viewer.camera.aspect ) 
+  model.viewer.camera.aspect = halfDW / halfDH;
+
 }
 
 // OSC
@@ -979,7 +1140,6 @@ function sendPosesXML( poses, osc ) {
 
 function println( str ) {
 
-  model.html.logElement.innerHTML += str;
-  model.html.logElement.innerHTML += '<br>';
+  model.html.logElement.innerHTML += str + '<br>' ;
 
 }
