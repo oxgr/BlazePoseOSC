@@ -27,6 +27,7 @@ const { Camera } = require( '@mediapipe/camera_utils' );
 const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' );
 const { gui } = require( 'dat.gui' );
 const THREE = require( 'three' );
+const osc = require( 'osc-js' );
 // import OrbitControls from `${__dirname}/three/examples/jsm/controls/OrbitControls.js`;
 //const mediaStream = require('media-stream-library');
 //const MjpegCamera = require('mjpeg-camera');
@@ -203,6 +204,16 @@ async function init() {
 
   // Results stored in an array with self results at index 0 and results from other windows with the same ID stored in subsequent indices.
   model.poseResults = [];
+  ipcRenderer.on( 'poseResults', ( event, args) => {
+    const { fromWindow, targetId } = args;
+    const thisWindow = model.settings.windowId;
+    const thisId = model.settings.global.id;
+    if ( fromWindow == thisWindow ) return;
+    if ( targetId != thisId ) return;
+
+    console.log( args );
+  })
+
 
   // Camera  
 
@@ -660,6 +671,12 @@ function onResults( results ) {
 
   }
 
+  ipcRenderer.send( 'poseResults', { 
+    poseResults: results,
+    targetId: model.settings.global.id,
+    fromWindowId: model.settings.windowId
+  })
+
 }
 
 // Settings
@@ -1003,7 +1020,7 @@ function onKeyPress( event ) {
       window.open( './blazepose-recorder.html', target = "_self" );
 
     case 'f':
-      ipcRenderer.send( 'float' );
+      ipcRenderer.send( 'float', { message: 'ok' } );
       break;
 
     case ' ':
@@ -1122,9 +1139,14 @@ function openOSC( host, port ) {
       send: {
         host: host,
         port: port,
+      },
+      receive: {
+        host: host,
+        port: port,
       }
     } )
   } );
+  // oscInstance.on( '/poses/json/*', msg => console.log( msg ) );
   oscInstance.open();
   return oscInstance;
 }

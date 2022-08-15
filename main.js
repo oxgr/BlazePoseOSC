@@ -97,20 +97,30 @@ ipcMain.on( 'resize', function ( e, x, y ) {
   // mainWindow.setContentSize( x, y );
 } )
 
-ipcMain.on( 'float', function () {
-  if ( !floating ) {
-    mainWindow.setAlwaysOnTop( true );
-    mainWindow.setVisibleOnAllWorkspaces( true );
-    mainWindow.setPosition( 0, 0 );
-    mainWindow.setContentSize( 1, 1 );
-  } else {
+ipcMain.on( 'float', function ( event, args ) {
 
-    mainWindow.setAlwaysOnTop( false );
-    mainWindow.setVisibleOnAllWorkspaces( false );
-    mainWindow.setContentSize( oldSize[ 0 ], oldSize[ 1 ] );
-  }
-  floating = !floating;
+  // if ( !floating ) {
+  //   mainWindow.setAlwaysOnTop( true );
+  //   mainWindow.setVisibleOnAllWorkspaces( true );
+  //   mainWindow.setPosition( 0, 0 );
+  //   mainWindow.setContentSize( 1, 1 );
+  // } else {
+
+  //   mainWindow.setAlwaysOnTop( false );
+  //   mainWindow.setVisibleOnAllWorkspaces( false );
+  //   mainWindow.setContentSize( oldSize[ 0 ], oldSize[ 1 ] );
+  // }
+  // floating = !floating;
 } )
+
+ipcMain.on( 'poseResults', ( event, args ) => {
+
+  // const { poseResults, id } = args;
+  // console.log( `Incoming results for ${id}`)
+
+  windows.forEach( e => { if ( e ) e.send( 'poseResults', args ) } )
+
+})
 
 ipcMain.on( 'addWindow', ( event ) => {
 
