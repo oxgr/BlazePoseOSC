@@ -201,6 +201,9 @@ async function init() {
   model.pose.setOptions( model.settings.pose.options );
   model.pose.onResults( onResults );
 
+  // Results stored in an array with self results at index 0 and results from other windows with the same ID stored in subsequent indices.
+  model.poseResults = [];
+
   // Camera  
 
 
@@ -306,7 +309,10 @@ async function init() {
 
     model.pose.landmarkCount = 33;
     objects.poses = [];
-    objects.poses.push( ( ( scene, color, landmarksSource ) => {
+    objects.poses.push( generatePoseObject( scene, 0xff0000, 0 ) );
+    objects.poses.push( generatePoseObject( scene, 0x00ff00, 1 ) );
+    
+    function generatePoseObject( scene, color, landmarksSource ) {
 
       const colorMat = new THREE.MeshStandardMaterial( { color: color } );
 
@@ -339,9 +345,7 @@ async function init() {
         landmarksSource: landmarksSource
       }
 
-    })( scene, 0xff0000, 'self' ) );
-    
-
+    }
 
 
     
@@ -472,59 +476,61 @@ async function loop() {
   viewerLoop();
   
   function viewerLoop() {
-    
-    if ( model.poseResults.poseLandmarks ) {
-  
-      model.viewer.objects.poses.forEach( ( pose ) => {
-        
-        let i = 0;
-        let scale = -4;
-        let yOffset = 2;
-    
-        const pwl = pose.landmarksSource == 'self' ? model.poseResults.poseLandmarks : [];
-        const m = [];
-        const pp = pose.posePoints;
-        
-        // Adjusting original values to scene proportions to dummy array
-        for ( let i = 0; i < pwl.length; i++ ) {
-    
-          m[ i ] = {};
-    
-          m[ i ].x = ( pwl[ i ].x * scale );
-          m[ i ].y = ( pwl[ i ].y * scale ) + yOffset;
-          m[ i ].z = ( pwl[ i ].z * scale );
-    
-        }
-    
-        // Assign dummy array values to posePoints positions.
-        for ( let i = 0; i < pp.length; i++ ) {
-    
-          pp[ i ].position.x = m[ i ].x;
-          pp[ i ].position.y = m[ i ].y;
-          pp[ i ].position.z = m[ i ].z;
-    
-        }
-    
-        // for ( let i = 0; i < Pose.POSE_CONNECTIONS.length; i++ ) {
-    
-        //   const lp = model.viewer.objects.lines.geometry.attributes.position;
-        //   const l1 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 0 ] ];
-        //   const l2 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 1 ] ];
-    
-        //   const j = i * 6;
-    
-        //   lp[ j ] = l1.x;
-        //   lp[ j + 1] = l1.y;
-        //   lp[ j + 2] = l1.z;
-        //   lp[ j + 3] = l2.x;
-        //   lp[ j + 4] = l2.y;
-        //   lp[ j + 5] = l2.z;
-    
-        // }
 
-      })
+    model.viewer.objects.poses.forEach( ( pose ) => {
+
+      const results = model.poseResults[ pose.landmarksSource ];
+      // If results don't exist, move to next pose.
+      if ( !results ) return;
+      
+      const pwl = results.poseWorldLandmarks;
+      if ( !pwl ) return;
+      
+      const m = [];
+      const pp = pose.posePoints;
+
+      let i = 0;
+      let scale = -4;
+      let yOffset = 2;
+      
+      // Adjusting original values to scene proportions to dummy array
+      for ( let i = 0; i < pwl.length; i++ ) {
   
-    }
+        m[ i ] = {};
+  
+        m[ i ].x = ( pwl[ i ].x * scale );
+        m[ i ].y = ( pwl[ i ].y * scale ) + yOffset;
+        m[ i ].z = ( pwl[ i ].z * scale );
+  
+      }
+  
+      // Assign dummy array values to posePoints positions.
+      for ( let i = 0; i < pp.length; i++ ) {
+  
+        pp[ i ].position.x = m[ i ].x;
+        pp[ i ].position.y = m[ i ].y;
+        pp[ i ].position.z = m[ i ].z;
+  
+      }
+  
+      // for ( let i = 0; i < Pose.POSE_CONNECTIONS.length; i++ ) {
+  
+      //   const lp = model.viewer.objects.lines.geometry.attributes.position;
+      //   const l1 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 0 ] ];
+      //   const l2 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 1 ] ];
+  
+      //   const j = i * 6;
+  
+      //   lp[ j ] = l1.x;
+      //   lp[ j + 1] = l1.y;
+      //   lp[ j + 2] = l1.z;
+      //   lp[ j + 3] = l2.x;
+      //   lp[ j + 4] = l2.y;
+      //   lp[ j + 5] = l2.z;
+  
+      // }
+
+    })
   
     model.viewer.objects.cube.rotateX( 0.01 );
     model.viewer.objects.cube.rotateY( 0.02 );
@@ -613,7 +619,8 @@ async function loop() {
  */
 function onResults( results ) {
 
-  model.poseResults = results;
+  model.poseResults[ 0 ] = results;
+  // model.poseWorldLandmarksArray[ 0 ] = results.poseWorldLandmarks;
 
   // Clear rect first so the old landmarks are gone if new results are null.
   // model.html.canvasCtx.clearRect( 0, 0, model.html.canvasElement.width, model.html.canvasElement.height );
