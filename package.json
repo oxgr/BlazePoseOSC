@@ -22,7 +22,9 @@
     "media-stream-library": "^11.1.1",
     "mjpeg-camera": "^2.0.0",
     "osc-js": "^2.0.3",
-    "stats.js": "^0.17.0"
+    "p5": "^1.4.2",
+    "stats.js": "^0.17.0",
+    "three": "^0.142.0"
   },
   "build": {
     "appId": "com.electron.blazeposeosc",

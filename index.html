@@ -34,8 +34,15 @@
 
     #output_canvas {
       position: absolute;
-      top: 50vh
+      top: 50vh;
+    }
 
+    #viewer_container {
+      position: absolute;
+      top: 50vh;
+      left: 50vw;
+      height: 50vh;
+      width: 50vw;
     }
 
     #buffer_canvas {
@@ -68,12 +75,13 @@
     <canvas id="input_video_canvas"></canvas>
     <!-- <video id="camera" autoplay> </video> -->
     <canvas id="output_canvas"></canvas>
+    <div id="viewer_container"></div>
     <div id="log"></div>
   </div>
 
   <canvas id="buffer_canvas"></canvas>
 
-  <script src="./app.js"></script>
+  <script src="./app.js" type="module"></script>
 
 </body>
 
