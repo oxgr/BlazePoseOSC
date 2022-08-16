@@ -476,7 +476,7 @@ async function loop() {
 
   // Viewer
 
-  viewerLoop();
+  if ( model.settings.viewer.enable ) viewerLoop();
   
   function viewerLoop() {
     

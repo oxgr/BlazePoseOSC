@@ -7,7 +7,7 @@
       "guiWidth": 380
     },
     "input": {
-      "source": "",
+      "source": "585f226550ac2ffe5fdf4d3cdd1268a44ea44b22082db0dde750788c2fc8f806",
       "mirror": true,
       "rotate": 0,
       "freeze": false,
@@ -37,7 +37,7 @@
     },
     "viewer": {
       "enable": true,
-      "yOffset": 3
+      "yOffset": 4
     },
     "osc": {
       "enable": true,
