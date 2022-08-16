@@ -8,6 +8,12 @@
   <!-- <script src="media-stream-library.min.js"></script> -->
 
   <style>
+
+    :root {
+
+      --log-width: 200px;
+
+    }
     body {
       padding: 0;
       margin: 0;
@@ -49,7 +55,7 @@
       display: none;
     }
 
-    #log {
+    #log, #logLive {
 
       font-family: 'Courier New', Courier, monospace;
       font-size: 0.8em;
@@ -60,7 +66,15 @@
       right: 10px;
       margin: 10px;
       padding: 10px;
+      width var(--log-width);
       z-index: 0;
+
+    }
+
+    #logLive {
+
+      left: 50vw;
+      width: calc( 50vw - ( var(--log-width) * 1.1 ) );
 
     }
   </style>
@@ -77,10 +91,12 @@
     <canvas id="output_canvas"></canvas>
     <div id="viewer_container"></div>
     <div id="log"></div>
+    <div id="logLive"></div>
   </div>
 
   <canvas id="buffer_canvas"></canvas>
 
+  <script src="./OrbitControls.js" type="module"></script>
   <script src="./app.js" type="module"></script>
 
 </body>

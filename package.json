@@ -1,6 +1,6 @@
 {
   "name": "blazepose-osc",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "A pose-detection app that uses Mediapipe's BlazePose model and sends landmark data through OSC.",
   "main": "./main.js",
   "scripts": {
@@ -9,6 +9,7 @@
   },
   "author": "",
   "license": "ISC",
+  "type": "module",
   "devDependencies": {
     "electron": "^7.2.4",
     "electron-builder": "^23.0.3",

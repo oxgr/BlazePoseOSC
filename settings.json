@@ -3,8 +3,8 @@
     "global": {
       "id": 1,
       "showStats": false,
-      "enableReadSettings": false,
-      "guiWidth": 400
+      "enableReadSettings": true,
+      "guiWidth": 380
     },
     "input": {
       "source": "",
@@ -13,7 +13,8 @@
       "freeze": false,
       "availableSources": {
         "video": {
-
+          "HD Pro Webcam C920 (046d:082d)": "23e9ead172f992238e6b2b458f61a2708ded2d5468fa806f14a404d4627fdd6b",
+          "FaceTime HD Camera (Built-in) (05ac:8514)": "585f226550ac2ffe5fdf4d3cdd1268a44ea44b22082db0dde750788c2fc8f806"
         },
         "audio": {}
       }
@@ -33,6 +34,10 @@
       "segmentationMask": false,
       "landmarkSize": 4,
       "connectorSize": 4
+    },
+    "viewer": {
+      "enable": true,
+      "yOffset": 3
     },
     "osc": {
       "enable": true,

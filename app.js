@@ -27,10 +27,15 @@ const { Camera } = require( '@mediapipe/camera_utils' );
 const drawUtils = require( '@mediapipe/drawing_utils/drawing_utils.js' );
 const { gui } = require( 'dat.gui' );
 const THREE = require( 'three' );
-// import OrbitControls from `${__dirname}/three/examples/jsm/controls/OrbitControls.js`;
+// import * as THREE from 'three';
+// const OrbitControls = require( 'three/examples/jsm/controls/OrbitControls.js' );
+// import OrbitControls from 'three/examples/jsm/controls/OrbitControls.js';
+import {OrbitControls} from './OrbitControls.js';
 //const mediaStream = require('media-stream-library');
 //const MjpegCamera = require('mjpeg-camera');
 // const { pipelines, isRtcpBye } = window.mediaStreamLibrary
+
+// console.log( OrbitControls ); 
 
 const model = {};
 
@@ -38,7 +43,7 @@ init();
 
 async function init() {
 
-  model.version = '0.2.4';
+  model.version = '0.3.0';
 
   // HTML
 
@@ -58,6 +63,7 @@ async function init() {
   model.html.viewerElement = document.getElementById( 'viewer_container' );
 
   model.html.logElement = document.getElementById( 'log' );
+  model.html.logLiveElement = document.getElementById( 'logLive' );
   println( 'Initialising...' )
   // println( 'Initialising...' );
 
@@ -271,14 +277,16 @@ async function init() {
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-    camera.position.x = 3;
-    camera.position.y = 5;
-    camera.position.z = 5;
+    camera.position.x = 2;
+    camera.position.y = 4;
+    camera.position.z = 4;
     camera.lookAt( 0, 2, 0 );
   
     const renderer = new THREE.WebGLRenderer();
     renderer.setSize( window.innerWidth * 0.5, window.innerHeight * 0.5 );
     model.html.viewerElement.appendChild( renderer.domElement );
+
+    const controls = new OrbitControls( camera, renderer.domElement );
 
     const clock = new THREE.Clock();
     clock.start();
@@ -288,7 +296,7 @@ async function init() {
     const light = new THREE.HemisphereLight( 0xffffbb, 0x080820, 1 );
     scene.add( light );
 
-    scene.background = new THREE.Color( 0xffffff );
+    scene.background = new THREE.Color( 0x666666 );
     scene.add( new THREE.GridHelper( 20, 20 ))
 
     const objects = {};
@@ -300,7 +308,7 @@ async function init() {
     scene.add( objects.cube );
 
 
-    const sphereGeo = new THREE.SphereGeometry( 0.2 );
+    const sphereGeo = new THREE.SphereGeometry( 0.1 );
 
     // console.log( { arrayTest: Array( 10 ).fill( { k: 'v' } ) } )
 
@@ -354,8 +362,6 @@ async function init() {
     //   scene.add( p );
 
     // }
-      
-    console.log( { posePoints: objects.posePoints } );
 
     return { 
       scene: scene,
@@ -363,6 +369,7 @@ async function init() {
       renderer: renderer,
       clock: clock,
       objects: objects,
+      controls: controls
     }
 
   })()
@@ -475,11 +482,11 @@ async function loop() {
     
     if ( model.poseResults.poseLandmarks ) {
   
-      model.viewer.objects.poses.forEach( ( pose ) => {
+      model.viewer.objects.poses.forEach( ( pose, index ) => {
         
         let i = 0;
-        let scale = -4;
-        let yOffset = 2;
+        let scale = -1;
+        let yOffset = model.settings.viewer.yOffset;
     
         const pwl = pose.landmarksSource == 'self' ? model.poseResults.poseLandmarks : [];
         const m = [];
@@ -493,6 +500,9 @@ async function loop() {
           m[ i ].x = ( pwl[ i ].x * scale );
           m[ i ].y = ( pwl[ i ].y * scale ) + yOffset;
           m[ i ].z = ( pwl[ i ].z * scale );
+          // m[ i ].x = ( pwl[ i ].x );
+          // m[ i ].y = ( pwl[ i ].y ) + yOffset;
+          // m[ i ].z = ( pwl[ i ].z );
     
         }
     
@@ -504,36 +514,56 @@ async function loop() {
           pp[ i ].position.z = m[ i ].z;
     
         }
+
+        if ( index == 0 ) {
+          
+          clearLog( model.html.logLiveElement );
+          println( `Nose:`, model.html.logLiveElement );
+          println( `x: ${pwl[0].x.toFixed( 2 )}`, model.html.logLiveElement );
+          println( `y: ${pwl[0].y.toFixed( 2 )}`, model.html.logLiveElement );
+          println( `z: ${pwl[0].z.toFixed( 2 )}`, model.html.logLiveElement );
+          println( `visibility: ${pwl[0].visibility.toFixed( 2 )}`, model.html.logLiveElement );
+          println( '', model.html.logLiveElement )
+          println( `Right Hip:`, model.html.logLiveElement );
+          println( `x: ${pwl[24].x.toFixed( 2 )}`, model.html.logLiveElement );
+          println( `y: ${pwl[24].y.toFixed( 2 )}`, model.html.logLiveElement );
+          println( `z: ${pwl[24].z.toFixed( 2 )}`, model.html.logLiveElement );
+          println( `visibility: ${pwl[23].visibility.toFixed( 2 )}`, model.html.logLiveElement );
+
+        }
+        
     
-        // for ( let i = 0; i < Pose.POSE_CONNECTIONS.length; i++ ) {
+      //   for ( let i = 0; i < Pose.POSE_CONNECTIONS.length; i++ ) {
     
-        //   const lp = model.viewer.objects.lines.geometry.attributes.position;
-        //   const l1 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 0 ] ];
-        //   const l2 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 1 ] ];
+      //     const lp = pose.lines.geometry.attributes.position;
+      //     const l1 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 0 ] ];
+      //     const l2 = pwl[ Pose.POSE_CONNECTIONS[ i ][ 1 ] ];
     
-        //   const j = i * 6;
+      //     const j = i * 6;
     
-        //   lp[ j ] = l1.x;
-        //   lp[ j + 1] = l1.y;
-        //   lp[ j + 2] = l1.z;
-        //   lp[ j + 3] = l2.x;
-        //   lp[ j + 4] = l2.y;
-        //   lp[ j + 5] = l2.z;
+      //     lp[ j ] = l1.x;
+      //     lp[ j + 1] = l1.y;
+      //     lp[ j + 2] = l1.z;
+      //     lp[ j + 3] = l2.x;
+      //     lp[ j + 4] = l2.y;
+      //     lp[ j + 5] = l2.z;
     
-        // }
+      //   }
 
       })
   
     }
   
-    model.viewer.objects.cube.rotateX( 0.01 );
-    model.viewer.objects.cube.rotateY( 0.02 );
-  
     model.viewer.delta = model.viewer.clock.getDelta();
     model.viewer.speed = 0.2;
+
+    model.viewer.objects.cube.rotateX( model.viewer.delta * model.viewer.speed );
+    model.viewer.objects.cube.rotateY( model.viewer.delta * model.viewer.speed * 2 );
   
-    model.viewer.scene.rotateY( model.viewer.delta * model.viewer.speed );
   
+    // model.viewer.scene.rotateY( model.viewer.delta * model.viewer.speed );
+  
+    model.viewer.controls.update();
     model.viewer.renderer.render( model.viewer.scene, model.viewer.camera )
 
   }
@@ -666,7 +696,7 @@ function loadSettings( windowId = 1, enableReadSettings = true, settingsURL = 's
       id: 1,
       showStats: true,
       enableReadSettings: true,
-      guiWidth: 400,
+      guiWidth: 380,
     },
     input: {
       source: '',
@@ -693,6 +723,10 @@ function loadSettings( windowId = 1, enableReadSettings = true, settingsURL = 's
       segmentationMask: false,
       landmarkSize: 4,
       connectorSize: 4,
+    },
+    viewer: {
+      enable: true,
+      yOffset: 3
     },
     osc: {
       enable: true,
@@ -878,8 +912,13 @@ function generateGUI( settings ) {
 
   let folderDraw = gui.addFolder( 'Draw' );
   folderDraw.add( settings.draw, 'segmentationMask' )
-  folderDraw.add( settings.draw, 'landmarkSize', 0, 10 ).step( 1 );
+  folderDraw.add( settings.draw, 'landmarkSize', 0, 10 ).step( 0.1 );
   folderDraw.add( settings.draw, 'connectorSize', 0, 10 ).step( 1 );
+
+  let folderViewer = gui.addFolder( '3D Viewer' );
+  folderViewer.add( settings.viewer, 'enable' )
+  folderViewer.add( settings.viewer, 'yOffset', 0, 10 ).step( 0.1 );
+  // folderViewer.add( settings.viewer, 'connectorSize', 0, 10 ).step( 1 );
 
   let folderOsc = gui.addFolder( 'OSC' );
   folderOsc.add( settings.osc, 'enable' )
@@ -1183,8 +1222,14 @@ function sendPosesXML( poses, osc ) {
   osc.send( new OSC.Message( "/poses/xml", result ) );
 }
 
-function println( str ) {
+function println( str = '', elem = model.html.logElement ) {
 
-  model.html.logElement.innerHTML += str + '<br>' ;
+  elem.innerHTML += str + '<br>' ;
+
+}
+
+function clearLog( elem ) {
+
+  elem.innerHTML = '';
 
 }
