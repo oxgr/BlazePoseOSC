@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>BlazePoseOSC</title>
+
+  <!-- <script src="media-stream-library.min.js"></script> -->
+
+  <style>
+
+    :root {
+
+      --log-width: 200px;
+
+    }
+    body {
+      padding: 0;
+      margin: 0;
+    }
+
+    canvas {
+      padding: 0;
+      margin: 0;
+    }
+
+    .container {
+      padding: 0;
+      margin: 0;
+      width: 100vw;
+      height: 100vh;
+
+    }
+
+    #input_video_canvas {
+
+      position: absolute;
+      /* z-index: -1; */
+    }
+
+    #output_canvas {
+      position: absolute;
+      top: 50vh;
+    }
+
+    #viewer_container {
+      position: absolute;
+      top: 50vh;
+      left: 50vw;
+      height: 50vh;
+      width: 50vw;
+    }
+
+    #buffer_canvas {
+      display: none;
+    }
+
+    #log, #logLive {
+
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.8em;
+      color: white;
+      background-color: rgba( 0, 0, 0, 0.5 );
+      position: absolute;
+      top: 20px;
+      right: 10px;
+      margin: 10px;
+      padding: 10px;
+      width var(--log-width);
+      z-index: 0;
+
+    }
+
+    #logLive {
+
+      left: 50vw;
+      width: calc( 50vw - ( var(--log-width) * 1.1 ) );
+
+    }
+  </style>
+</head>
+
+<body>
+
+  <video id="input_video" autoplay muted hidden="hidden"></video>
+  
+
+  <div class="container">
+    <canvas id="input_video_canvas"></canvas>
+    <!-- <video id="camera" autoplay> </video> -->
+    <canvas id="output_canvas"></canvas>
+    <div id="viewer_container"></div>
+    <div id="log"></div>
+    <div id="logLive"></div>
+  </div>
+
+  <canvas id="buffer_canvas"></canvas>
+
+  <script src="./OrbitControls.js" type="module"></script>
+  <script src="./app.js" type="module"></script>
+
+</body>
+
+</html>
