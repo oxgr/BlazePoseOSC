@@ -25,13 +25,13 @@ function createWindow() {
     webPreferences: {
       backgroundThrottling: false,
       pageVisibility: true,
-      preload: path.join( __dirname, 'preload.js' ),
+      preload: path.join( __dirname, 'src', 'preload.js' ),
       nodeIntegration: true,
     }
   } )
 
   // and load the index.html of the app.
-  window.loadURL( path.join( 'file://', __dirname, 'index.html' ) );
+  window.loadURL( path.join( 'file://', __dirname, 'src', 'index.html' ) );
 
   // Open the DevTools.
   // mainWindow.webContents.openDevTools()

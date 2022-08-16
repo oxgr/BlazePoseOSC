@@ -130,8 +130,8 @@ async function init() {
   
   // Set settings URL based on dev or produciton build. defaultApp == development == "electron ." command.
   model.settingsURL = remote.process.defaultApp ?
-  path.join( __dirname, 'settings.json' ) :
-    path.join( __dirname, '..', '..', 'settings.json' );
+  path.join( __dirname, '..', 'data', 'settings.json' ) :
+    path.join( __dirname, '..', '..', '..', 'data', 'settings.json' );
 
     console.log( {isPackaged: remote.process.defaultApp });
 
@@ -174,7 +174,7 @@ async function init() {
 
   println( 'Generating audio element...' );
   // Audio playback to ensure camera keeps rendering even when window is not in focus
-  generateAudioElement( path.join( __dirname, 'silent.mp3' ) );
+  generateAudioElement( path.join( __dirname, '..', 'assets', 'silent.mp3' ) )
   
   // Stats
 
@@ -200,7 +200,7 @@ async function init() {
   println( 'Initialising BlazePose...' );
   model.pose = new Pose.Pose( {
     locateFile: ( file ) => {
-      return `${__dirname}/node_modules/@mediapipe/pose/${file}`;
+      return `${__dirname}/../node_modules/@mediapipe/pose/${file}`;
     }
   } );
 
@@ -276,17 +276,17 @@ async function init() {
   model.viewer = ( () => {
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-    camera.position.x = 2;
-    camera.position.y = 4;
+    const camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 0.1, 1000 );
+    camera.position.x = -4;
+    camera.position.y = 3;
     camera.position.z = 4;
-    camera.lookAt( 0, 2, 0 );
   
     const renderer = new THREE.WebGLRenderer();
     renderer.setSize( window.innerWidth * 0.5, window.innerHeight * 0.5 );
     model.html.viewerElement.appendChild( renderer.domElement );
 
     const controls = new OrbitControls( camera, renderer.domElement );
+    controls.target = new THREE.Vector3( 0, 2, 0 );
 
     const clock = new THREE.Clock();
     clock.start();
@@ -518,13 +518,13 @@ async function loop() {
         if ( index == 0 ) {
           
           clearLog( model.html.logLiveElement );
-          println( `Nose:`, model.html.logLiveElement );
+          println( `<b>Nose</b>`, model.html.logLiveElement );
           println( `x: ${pwl[0].x.toFixed( 2 )}`, model.html.logLiveElement );
           println( `y: ${pwl[0].y.toFixed( 2 )}`, model.html.logLiveElement );
           println( `z: ${pwl[0].z.toFixed( 2 )}`, model.html.logLiveElement );
           println( `visibility: ${pwl[0].visibility.toFixed( 2 )}`, model.html.logLiveElement );
           println( '', model.html.logLiveElement )
-          println( `Right Hip:`, model.html.logLiveElement );
+          println( `<b>Right Hip</b>`, model.html.logLiveElement );
           println( `x: ${pwl[24].x.toFixed( 2 )}`, model.html.logLiveElement );
           println( `y: ${pwl[24].y.toFixed( 2 )}`, model.html.logLiveElement );
           println( `z: ${pwl[24].z.toFixed( 2 )}`, model.html.logLiveElement );

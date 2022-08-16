@@ -36,14 +36,12 @@
       "buildResources": "build-resources"
     },
     "files": [
+      "src/*",
+      "data/*",
+      "assets/*",
       "package.json",
       "node_modules",
-      "main.js",
-      "preload.js",
-      "settings.json",
-      "index.html",
-      "app.js",
-      "silent.mp3"
+      "main.js"
     ],
     "dmg": {
       "background": null,
@@ -68,7 +66,7 @@
     "mac": {
       "target": "dmg",
       "category": "public.app-category.utilities",
-      "extraFiles": "settings.json"
+      "extraFiles": "data/*"
     }
   }
 }
