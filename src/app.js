@@ -128,7 +128,8 @@ async function init() {
   println( 'Loading settings...' );
 
   const windowId = remote.getCurrentWebContents().id
-  const enableReadSettings = false;
+  // const enableReadSettings = false;
+  const enableReadSettings = true;
   
   // Set settings URL based on dev or produciton build. defaultApp == development == "electron ." command.
   model.settingsURL = remote.process.defaultApp ?
@@ -193,6 +194,11 @@ async function init() {
   console.log( { availSourcesVideo: model.settings.input.availableSources.video })
   println( 'Setting media stream...' );
   model.html.videoElement.srcObject = await getStream( model.settings.input.source );
+  model.settings.input.sourceName = Object
+    .keys( model.settings.input.availableSources.video )
+    .find( key => model.settings.input.availableSources.video[ key ] == model.settings.input.source );
+  console.log( {srcObject: model.html.videoElement.srcObject})
+  
   println( 'Generating GUI...' );
   model.gui = generateGUI( model.settings );
   // model.gui.domElement.style.width = '400px'
@@ -703,6 +709,7 @@ function loadSettings( windowId = 1, enableReadSettings = true, settingsURL = 's
     },
     input: {
       source: '',
+      sourceName: '',
       axisCameraIP: '192.168.0.90',
       mirror: true,
       rotate: 0,
@@ -889,7 +896,7 @@ function generateGUI( settings ) {
   
   let folderGlobal = gui.addFolder( 'Global' );
   folderGlobal.add( settings.global, 'id', 1, 10 ).name( 'ID' ).step( 1 );
-  folderGlobal.add( settings.global, 'enableReadSettings' ).name( 'Enable read settings');
+  // folderGlobal.add( settings.global, 'enableReadSettings' ).name( 'Enable read settings');
   // folderGlobal.add( model, 'loadSettings' ).name( 'Manual read settings.json');
   folderGlobal.add( model, 'clearSettings' ).name( 'Clear settings.json');
   folderGlobal.add( settings.global, 'guiWidth', 250, 500 ).name( 'GUI width' ).onChange( (val) => model.gui.width = val );
@@ -898,7 +905,8 @@ function generateGUI( settings ) {
   folderInput.add( settings.input, 'source', settings.input.availableSources.video )
     .name( 'Input Source' )
     .onChange( async ( sourceId ) => {
-      console.log( `Switching camera...` );
+      model.settings.input.sourceName = Object.keys( settings.input.availableSources.video ).find( key => settings.input.availableSources.video[ key ] == sourceId );
+      console.log( `Switching camera to ${model.settings.input.sourceName}` );
       if ( sourceId == settings.input.availableSources.video[ 'Axis Camera' ] ) {
         model.html.spareElement = model.html.videoElement;
         model.html.videoElement = model.html.imgElement;
@@ -912,8 +920,17 @@ function generateGUI( settings ) {
       model.html.videoElement.srcObject = stream;
     })
     .listen();
-  folderInput.add( settings.input, 'axisCameraIP' ).name( 'Axis Camera IP' ).onChange( ( ip ) => {
-    model.settings.input.availableSources.video[ 'Axis Camera' ] = `http://${ip}/mjpg/1/video.mjpg`;
+  folderInput.add( settings.input, 'axisCameraIP' ).name( 'Axis Camera IP' ).onFinishChange( ( ip ) => {
+    const oldSource = settings.input.availableSources.video[ 'Axis Camera' ]
+    settings.input.availableSources.video[ 'Axis Camera' ] = `http://${ip}/mjpg/1/video.mjpg`;
+    if ( settings.input.source == oldSource ) {
+      try {
+        model.html.videoElement.src = settings.input.availableSources.video[ 'Axis Camera' ];
+      } catch ( e ) {
+        console.error( 'Could not connect to Axis Camera. Check IP address? Error:', e );
+      }
+    }
+
   } )
   folderInput.add( settings.input, 'freeze' );
   folderInput.add( settings.input, 'mirror' );
