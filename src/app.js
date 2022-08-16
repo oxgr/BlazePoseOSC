@@ -51,6 +51,8 @@ async function init() {
 
   //// Inputs
   model.html.videoElement = document.getElementById( 'input_video' );
+  model.html.spareElement = model.html.videoElement;
+  model.html.imgElement = document.querySelector( '#input_img' );
   model.html.videoCanvasElement = document.getElementById( 'input_video_canvas' );
   model.html.videoCanvasCtx = model.html.videoCanvasElement.getContext( '2d' );
 
@@ -126,7 +128,7 @@ async function init() {
   println( 'Loading settings...' );
 
   const windowId = remote.getCurrentWebContents().id
-  const enableReadSettings = true;
+  const enableReadSettings = false;
   
   // Set settings URL based on dev or produciton build. defaultApp == development == "electron ." command.
   model.settingsURL = remote.process.defaultApp ?
@@ -187,6 +189,7 @@ async function init() {
 
   println( 'Getting source devices...' );
   model.settings.input.availableSources.video = await getDevices();
+  model.settings.input.availableSources.video[ 'Axis Camera' ] = `http://${model.settings.input.axisCameraIP}/mjpg/1/video.mjpg`;
   console.log( { availSourcesVideo: model.settings.input.availableSources.video })
   println( 'Setting media stream...' );
   model.html.videoElement.srcObject = await getStream( model.settings.input.source );
@@ -293,10 +296,10 @@ async function init() {
 
     // const light = new THREE.AmbientLight( 0xffffff );
     // scene.add( light );
-    const light = new THREE.HemisphereLight( 0xffffbb, 0x080820, 1 );
+    const light = new THREE.HemisphereLight( 0xffffff, 0x080820, 1 );
     scene.add( light );
 
-    scene.background = new THREE.Color( 0x666666 );
+    scene.background = new THREE.Color( 0x555555 );
     scene.add( new THREE.GridHelper( 20, 20 ))
 
     const objects = {};
@@ -589,7 +592,7 @@ async function loop() {
 
     const angleInRadians = angle * ( Math.PI / 180 );
 
-    bufferCtx = buffer.getContext( '2d' ); 
+    const bufferCtx = buffer.getContext( '2d' ); 
 
     bufferCtx.drawImage( element, 0, 0, w, h );
     context.clearRect( 0, 0, w, h );
@@ -700,6 +703,7 @@ function loadSettings( windowId = 1, enableReadSettings = true, settingsURL = 's
     },
     input: {
       source: '',
+      axisCameraIP: '192.168.0.90',
       mirror: true,
       rotate: 0,
       freeze: false,
@@ -890,19 +894,31 @@ function generateGUI( settings ) {
   folderGlobal.add( model, 'clearSettings' ).name( 'Clear settings.json');
   folderGlobal.add( settings.global, 'guiWidth', 250, 500 ).name( 'GUI width' ).onChange( (val) => model.gui.width = val );
 
-  let folderSrc = gui.addFolder( 'Input' );
-  folderSrc.add( settings.input, 'source', settings.input.availableSources.video )
+  let folderInput = gui.addFolder( 'Input' );
+  folderInput.add( settings.input, 'source', settings.input.availableSources.video )
     .name( 'Input Source' )
     .onChange( async ( sourceId ) => {
+      console.log( `Switching camera...` );
+      if ( sourceId == settings.input.availableSources.video[ 'Axis Camera' ] ) {
+        model.html.spareElement = model.html.videoElement;
+        model.html.videoElement = model.html.imgElement;
+        model.html.videoElement.src = sourceId;
+        return;
+      } else if ( model.html.videoElement.tagName != 'video' ) {
+        model.html.videoElement = model.html.spareElement;
+      }
       const stream = await getStream( sourceId );
       console.log( stream );
       model.html.videoElement.srcObject = stream;
     })
     .listen();
-  folderSrc.add( settings.input, 'freeze' );
-  folderSrc.add( settings.input, 'mirror' );
-  folderSrc.add( settings.input, 'rotate', 0, 270 ).step( 90 );
-  folderSrc.add( model, 'addWindow' ).name( 'Add input' );
+  folderInput.add( settings.input, 'axisCameraIP' ).name( 'Axis Camera IP' ).onChange( ( ip ) => {
+    model.settings.input.availableSources.video[ 'Axis Camera' ] = `http://${ip}/mjpg/1/video.mjpg`;
+  } )
+  folderInput.add( settings.input, 'freeze' );
+  folderInput.add( settings.input, 'mirror' );
+  folderInput.add( settings.input, 'rotate', 0, 270 ).step( 90 );
+  folderInput.add( model, 'addWindow' ).name( 'Add input' );
 
   let folderPose = gui.addFolder( 'Pose' );
   // { lite: 0, full: 1, heavy: 2 }

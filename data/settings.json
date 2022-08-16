@@ -7,14 +7,15 @@
       "guiWidth": 380
     },
     "input": {
-      "source": "585f226550ac2ffe5fdf4d3cdd1268a44ea44b22082db0dde750788c2fc8f806",
+      "source": "",
+      "axisCameraIP": "192.168.0.90",
       "mirror": true,
       "rotate": 0,
       "freeze": false,
       "availableSources": {
         "video": {
-          "HD Pro Webcam C920 (046d:082d)": "23e9ead172f992238e6b2b458f61a2708ded2d5468fa806f14a404d4627fdd6b",
-          "FaceTime HD Camera (Built-in) (05ac:8514)": "585f226550ac2ffe5fdf4d3cdd1268a44ea44b22082db0dde750788c2fc8f806"
+          "FaceTime HD Camera (Built-in) (05ac:8514)": "585f226550ac2ffe5fdf4d3cdd1268a44ea44b22082db0dde750788c2fc8f806",
+          "Axis Camera": "http://192.168.0.90/mjpg/1/video.mjpg"
         },
         "audio": {}
       }
@@ -37,7 +38,7 @@
     },
     "viewer": {
       "enable": true,
-      "yOffset": 4
+      "yOffset": 3
     },
     "osc": {
       "enable": true,

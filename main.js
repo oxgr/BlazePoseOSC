@@ -32,7 +32,7 @@ function createWindow() {
 
   // and load the index.html of the app.
   // window.loadURL( path.join( 'file://', __dirname, 'src', 'index.html' ) );
-  window.loadURL( path.join( 'file://', __dirname, 'src', 'camTest.html' ) );
+  window.loadURL( path.join( 'file://', __dirname, 'src', 'index.html' ) );
 
   // Open the DevTools.
   // mainWindow.webContents.openDevTools()

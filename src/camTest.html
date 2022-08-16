@@ -21,9 +21,10 @@
 </head>
 <body>
 
-    <img src="http://192.168.0.90/mjpg/1/video.mjpg" id="camVid">
-    <!-- <img src="http://192.168.0.90/jpg/image.jpg" id="cam"> -->
-    <img src="" id="blankImg">
+    <!-- <img src="http://192.168.0.90/mjpg/1/video.mjpg" id="camVid"> -->
+    <img src="http://192.168.0.90/axis-media/media.amp?videocodec=h264" id="camVideo">
+    <!-- <img src="http://192.168.0.90/jpg/image.jpg" id="cam">
+    <img src="" id="blankImg"> -->
 
     <canvas id="canvas"></canvas>
     
@@ -48,24 +49,49 @@
 
         }
 
-        const imgURL = 'http://192.168.0.90/jpg/image.jpg';
+        const imgURL = 'http://192.168.0.90:80/jpg/image.jpg';
 
         blankImg.src = imgURL;
 
+        // const username = 'stsuser';
         const username = 'root';
         const password = 'hemmer';
         
         const headers = new Headers();
-        headers.set('Authorization', 'Basic ' + window.btoa(username + ":" + password));
+        headers.set('Authorization', 'Basic ' + window.btoa(username + ":"));
 
-        const img = ( async () => {
-            return await fetch( imgURL, {
+        const img = await fetch( imgURL, {
                 mode: 'no-cors',
-                headers: headers
-            })
-        } );
+                // headers: headers
+            } );
 
-        console.debug( img )
+        console.log( img );
+
+        // const imgURL = `http://192.168.0.90`
+
+        // Force a login by fetching usergroup
+        // const response = ( async () => {
+            
+        //     const host = '192.168.0.90';
+        //     const fetchOptions = {
+        //         credentials: 'include',
+        //         headers: {
+        //         'Axis-Orig-Sw': true,
+        //         'X-Requested-With': 'XMLHttpRequest',
+        //         },
+        //         mode: 'no-cors',
+        //     }
+        //     try {
+        //         return await window.fetch( `http://${host}/axis-cgi/usergroup.cgi`, fetchOptions )
+        //     } catch ( err ) {
+        //         console.error( err )
+        //     }
+
+        // })()
+
+        // console.log( response );
+
+        // console.debug( img )
 
         // update();
 
