@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+
+        body {
+            margin: 0;
+        }
+
+        video, img {
+
+            width: 100vw;
+
+        }
+
+    </style>
+</head>
+<body>
+
+    <img src="http://192.168.0.90/mjpg/1/video.mjpg" id="camVid">
+    <!-- <img src="http://192.168.0.90/jpg/image.jpg" id="cam"> -->
+    <img src="" id="blankImg">
+
+    <canvas id="canvas"></canvas>
+    
+    <script type="module">
+
+        const canvas = document.querySelector( '#canvas' );
+        const blankImg = document.querySelector( '#blankImg' );
+        // const camImg = document.querySelector( '#cam' );
+        // const camVid = document.querySelector( '#camVid' );
+
+
+        // loop();
+
+        function loop() {
+
+            canvas.width = camVid.width;
+            canvas.height = camVid.height;
+            const ctx = canvas.getContext( '2d' );
+            ctx.drawImage( camVid, 0, 0, canvas.width, canvas.height ); 
+
+            requestAnimationFrame( loop );
+
+        }
+
+        const imgURL = 'http://192.168.0.90/jpg/image.jpg';
+
+        blankImg.src = imgURL;
+
+        const username = 'root';
+        const password = 'hemmer';
+        
+        const headers = new Headers();
+        headers.set('Authorization', 'Basic ' + window.btoa(username + ":" + password));
+
+        const img = ( async () => {
+            return await fetch( imgURL, {
+                mode: 'no-cors',
+                headers: headers
+            })
+        } );
+
+        console.debug( img )
+
+        // update();
+
+        function update() {
+
+            const imgURL = 'http://192.168.0.90/jpg/image.jpg',
+                timestamp = ( new Date ).getTime(),
+                newUrl = imgURL + '?_=' + timestamp;
+
+            camImg.src = newUrl;
+
+            setTimeout( update, 33 );
+
+
+        }
+
+    </script>
+
+</body>
+</html>
