@@ -7,9 +7,6 @@ Send realtime human pose estimation data to your apps! An adapted version of Lin
 - Originally inspired by [FaceOSC](https://github.com/kylemcdonald/ofxFaceTracker/releases)
 
 
-Screenshot with [OSC Data Monitor](https://www.kasperkamperman.com/blog/processing-code/osc-datamonitor/) in the background, the Processing demo can be found in `/demos` folder.
-
-
 ## Download / Installation
 
 Use [NPM](http://npmjs.com) to install and run the app.
