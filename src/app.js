@@ -43,31 +43,36 @@ init();
 
 async function init() {
 
-  model.version = '0.3.0';
+  model.version = '0.3.1';
 
   // HTML
 
   model.html = {};
 
   //// Inputs
-  model.html.videoElement = document.getElementById( 'input_video' );
-  model.html.spareElement = model.html.videoElement;
+  model.html.videoElement = document.querySelector( '#input_video' );
   model.html.imgElement = document.querySelector( '#input_img' );
-  model.html.videoCanvasElement = document.getElementById( 'input_video_canvas' );
+  model.html.inputElement = model.html.videoElement;
+
+  model.html.videoCanvasElement = document.querySelector( '#input_video_canvas' );
   model.html.videoCanvasCtx = model.html.videoCanvasElement.getContext( '2d' );
+  
+  model.html.inputElement.onloadeddata = onVideoLoaded;
+  model.html.imgElement.onloadeddata = onVideoLoaded;
 
   //// Outputs
-  model.html.buffer = document.getElementById( 'buffer_canvas' );
+  model.html.buffer = document.querySelector( '#buffer_canvas' );
 
-  model.html.canvasElement = document.getElementById( 'output_canvas' );
+  model.html.canvasElement = document.querySelector( '#output_canvas' );
   model.html.canvasCtx = model.html.canvasElement.getContext( '2d' );
 
-  model.html.viewerElement = document.getElementById( 'viewer_container' );
+  model.html.viewerElement = document.querySelector( '#viewer_container' );
 
-  model.html.logElement = document.getElementById( 'log' );
-  model.html.logLiveElement = document.getElementById( 'logLive' );
+  model.html.logElement = document.querySelector( '#log' );
+  model.html.logLiveElement = document.querySelector( '#logLive' );
+  
+  
   println( 'Initialising...' )
-  // println( 'Initialising...' );
 
   model.boundingBox = [
     {
@@ -79,26 +84,6 @@ async function init() {
       y: 1
     },
   ];
-
-  model.videoLoaded = false;
-
-  model.html.videoElement.onloadeddata = function () {
-
-    const w = model.html.videoElement.videoWidth
-    const h = model.html.videoElement.videoHeight;
-
-    console.log( "camera dimensions", w, h );
-
-    model.aspectRatio = w / h;
-
-    onWindowResize( model.aspectRatio );
-
-    ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
-
-    model.videoLoaded = true;
-    println( 'Video loaded!' );
-
-  }
 
   document.body.addEventListener( "keypress", onKeyPress );
   document.body.addEventListener( "pointerdown", onMouseDown );
@@ -186,19 +171,21 @@ async function init() {
   model.stats.showPanel( 0 );
   document.body.appendChild( model.stats.dom );
 
-  // GUI
+  // Input
 
   println( 'Getting source devices...' );
   model.settings.input.availableSources.video = await getDevices();
-  model.settings.input.availableSources.video[ 'Axis Camera' ] = `http://${model.settings.input.axisCameraIP}/mjpg/1/video.mjpg`;
-  console.log( { availSourcesVideo: model.settings.input.availableSources.video })
-  println( 'Setting media stream...' );
-  model.html.videoElement.srcObject = await getStream( model.settings.input.source );
-  model.settings.input.sourceName = Object
-    .keys( model.settings.input.availableSources.video )
-    .find( key => model.settings.input.availableSources.video[ key ] == model.settings.input.source );
-  console.log( {srcObject: model.html.videoElement.srcObject})
+  console.log( { availableSources: model.settings.input.availableSources.video })
   
+  model.settings.input.sourceName = getSourceName( model.settings.input.source );
+  
+  println( `Setting media stream to ${ model.settings.input.sourceName }...` );
+  await setInputSource( model.settings.input.source );
+
+  model.aspectRatio = 1920 / 1080;
+  
+  // GUI
+
   println( 'Generating GUI...' );
   model.gui = generateGUI( model.settings );
   // model.gui.domElement.style.width = '400px'
@@ -213,8 +200,10 @@ async function init() {
     }
   } );
 
+  model.pose.ready = true;
   model.pose.setOptions( model.settings.pose.options );
   model.pose.onResults( onResults );
+  model.poseResults = {};
 
   // Camera  
 
@@ -274,8 +263,8 @@ async function init() {
 
   // model.camera = new Camera( model.html.videoCanvasElement, {
   //   onFrame: onFrame,
-  //   width: model.html.videoElement.videoWidth,
-  //   height: model.html.videoElement.videoHeight
+  //   width: model.html.inputElement.videoWidth,
+  //   height: model.html.inputElement.videoHeight
   // } );
 
   // model.camera.start();
@@ -389,99 +378,115 @@ async function init() {
   loop();
 }
 
-async function loop() {
+function loop() {
 
   model.stats.begin();
 
-  const args = {
-    video: model.html.videoElement,
-    in: model.html.videoCanvasElement,
-    inCtx: model.html.videoCanvasCtx,
-    out: model.html.canvasElement,
-    outCtx: model.html.canvasCtx,
-    buffer: model.html.buffer,
-    pose: model.pose
-  }
+  if ( 
+    model.html.canvasElement.width > 0 && model.html.canvasElement.height > 0 &&
+    model.videoLoaded
+    ) inputLoop();
 
-  args.inCtx.drawImage( args.video, 0, 0, args.in.width, args.in.height );
+  function inputLoop() {
+    const args = {
+      video: model.html.inputElement,
+      in: model.html.videoCanvasElement,
+      inCtx: model.html.videoCanvasCtx,
+      out: model.html.canvasElement,
+      outCtx: model.html.canvasCtx,
+      buffer: model.html.buffer,
+      pose: model.pose
+    }
 
-  if ( model.settings.input.rotate != 0 ) {
+    args.inCtx.drawImage( args.video, 0, 0, args.in.width, args.in.height );
 
-    rotate(
-      args.in,
-      args.inCtx,
-      args.buffer,
-      model.settings.input.rotate
+    if ( model.settings.input.rotate != 0 ) {
+
+      rotate(
+        args.in,
+        args.inCtx,
+        args.buffer,
+        model.settings.input.rotate
+      )
+    }
+
+    if ( !!model.settings.input.mirror ) {
+      mirror(
+        args.in,
+        args.inCtx
+      );
+    }
+
+    const x1 = model.boundingBox[ 0 ].x * args.in.width;
+    const y1 = model.boundingBox[ 0 ].y * args.in.height;
+    const x2 = model.boundingBox[ 1 ].x * args.in.width;
+    const y2 = model.boundingBox[ 1 ].y * args.in.height;
+
+    args.outCtx.clearRect( 0, 0, args.out.width, args.out.height )
+
+    let elementToDraw = args.in;
+
+    // Draw the image in the boundingBox from in to out.
+    if ( model.settings.input.freeze ) {
+      elementToDraw = args.buffer;
+    } else {
+      args.buffer.getContext( '2d' ).drawImage( args.in, 0, 0, args.buffer.width, args.buffer.height );
+    }
+
+    args.outCtx.drawImage(
+      elementToDraw,
+      x1,
+      y1,
+      x2 - x1,
+      y2 - y1,
+      0,
+      0,
+      ( ( x2 - x1 ) / ( y2 - y1 ) ) * args.out.height,
+      args.out.height,
     )
+
+
+    // Draw the bounding box.
+
+    const cornerSize = 40;
+    const halfCorner = cornerSize * 0.5;
+    args.inCtx.lineWidth = 3;
+    args.inCtx.strokeStyle = 'yellow';
+
+    args.inCtx.strokeRect(
+      x1,
+      y1,
+      x2 - x1,
+      y2 - y1,
+    )
+
+    // Draw the bounding box corners for dragging.
+    args.inCtx.strokeStyle = 'red';
+    args.inCtx.strokeRect(
+      x1 - halfCorner,
+      y1 - halfCorner,
+      cornerSize,
+      cornerSize,
+    )
+    args.inCtx.strokeRect(
+      x2 - halfCorner,
+      y2 - halfCorner,
+      cornerSize,
+      cornerSize,
+    )
+
+    // Send output element frame to BlazePose.
+    if ( !!model.pose.ready ) {
+      try {
+        model.pose.send( { image: model.html.canvasElement } );
+        model.pose.ready = false;
+      } catch ( e ) {
+        console.error( e );
+      }
+    }
+    
   }
 
-  if ( !!model.settings.input.mirror ) {
-    mirror(
-      args.in,
-      args.inCtx
-    );
-  }
-
-  const x1 = model.boundingBox[ 0 ].x * args.in.width;
-  const y1 = model.boundingBox[ 0 ].y * args.in.height;
-  const x2 = model.boundingBox[ 1 ].x * args.in.width;
-  const y2 = model.boundingBox[ 1 ].y * args.in.height;
-
-  args.outCtx.clearRect( 0, 0, args.out.width, args.out.height )
-
-  let elementToDraw = args.in;
-
-  // Draw the image in the boundingBox from in to out.
-  if ( model.settings.input.freeze ) {
-    elementToDraw = args.buffer;
-  } else {
-    args.buffer.getContext( '2d' ).drawImage( args.in, 0, 0, args.buffer.width, args.buffer.height );
-  }
-
-  args.outCtx.drawImage(
-    elementToDraw,
-    x1,
-    y1,
-    x2 - x1,
-    y2 - y1,
-    0,
-    0,
-    ( ( x2 - x1 ) / ( y2 - y1 ) ) * args.out.height,
-    args.out.height,
-  )
-
-
-  // Draw the bounding box.
-
-  const cornerSize = 40;
-  const halfCorner = cornerSize * 0.5;
-  args.inCtx.lineWidth = 3;
-  args.inCtx.strokeStyle = 'yellow';
-
-  args.inCtx.strokeRect(
-    x1,
-    y1,
-    x2 - x1,
-    y2 - y1,
-  )
-
-  // Draw the bounding box corners for dragging.
-  args.inCtx.strokeStyle = 'red';
-  args.inCtx.strokeRect(
-    x1 - halfCorner,
-    y1 - halfCorner,
-    cornerSize,
-    cornerSize,
-  )
-  args.inCtx.strokeRect(
-    x2 - halfCorner,
-    y2 - halfCorner,
-    cornerSize,
-    cornerSize,
-  )
-
-  // Send output element frame to BlazePose.
-  await args.pose.send( { image: args.out } );
 
   // Viewer
 
@@ -657,7 +662,10 @@ function onResults( results ) {
   // Clear rect first so the old landmarks are gone if new results are null.
   // model.html.canvasCtx.clearRect( 0, 0, model.html.canvasElement.width, model.html.canvasElement.height );
 
-  if ( results.poseLandmarks == null ) return;
+  if ( results.poseLandmarks == null ) {
+    model.pose.ready = true;
+    return;
+  }
 
   // model.html.canvasCtx.save();
 
@@ -691,6 +699,8 @@ function onResults( results ) {
     model.oscTimer = Date.now();
 
   }
+  
+  model.pose.ready = true;
 
 }
 
@@ -826,6 +836,7 @@ function saveSettings() {
  * Gets stream from source, sets it to element.
  * */
 async function getStream( sourceId ) {
+
   if ( window.stream ) {
     window.stream.getTracks().forEach( track => track.stop() );
   }
@@ -879,9 +890,72 @@ async function getDevices() {
     }
   }
 
+  sources[ 'Axis Camera' ] = `http://${model.settings.input.axisCameraIP}/mjpg/1/video.mjpg`;
+
   return sources;
 
 }
+
+function getSourceName( sourceId ) {
+
+  return Object
+    .keys( model.settings.input.availableSources.video )
+    .find( key => model.settings.input.availableSources.video[ key ] == sourceId );
+
+}
+
+function getAspectRatio( sourceElement ) {
+
+  let w, h;
+
+  if ( sourceElement.localName == 'video' ) {
+    w = sourceElement.videoWidth
+    h = sourceElement.videoHeight;
+    console.log( 'called video route')
+  } else {
+    w = sourceElement.width
+    h = sourceElement.height;
+  }
+
+  console.log( "Camera dimensions", w, h );
+  
+  ipcRenderer.send( 'resize', document.body.innerWidth, document.body.innerHeight ); //w, h);
+  
+  model.videoLoaded = true;
+  println( 'Video loaded!' );
+
+  return w / h;
+
+}
+
+async function setInputSource( sourceId ) {
+
+  println( `Switching input to ${model.settings.input.sourceName}...`, model.html.logLiveElement)
+  model.videoLoaded = false;
+
+  model.settings.input.sourceName = Object.keys( model.settings.input.availableSources.video ).find( key => model.settings.input.availableSources.video[ key ] == sourceId );
+  
+  console.log( `Switching camera to ${model.settings.input.sourceName}` );
+
+  if ( sourceId == model.settings.input.availableSources.video[ 'Axis Camera' ] ) {
+    model.html.videoElement = model.html.inputElement;
+    model.html.inputElement = model.html.imgElement;
+    try {
+      model.html.inputElement.src = sourceId;
+    } catch( e ) {
+      console.error( e );
+    }
+    return;
+  } else if ( model.html.inputElement.localName != 'video' ) {
+    model.html.inputElement = model.html.videoElement;
+  }
+  const stream = await getStream( sourceId );
+  console.log( stream );
+  model.html.inputElement.srcObject = stream;
+
+  
+
+} 
 
 // Generate
 
@@ -904,28 +978,14 @@ function generateGUI( settings ) {
   let folderInput = gui.addFolder( 'Input' );
   folderInput.add( settings.input, 'source', settings.input.availableSources.video )
     .name( 'Input Source' )
-    .onChange( async ( sourceId ) => {
-      model.settings.input.sourceName = Object.keys( settings.input.availableSources.video ).find( key => settings.input.availableSources.video[ key ] == sourceId );
-      console.log( `Switching camera to ${model.settings.input.sourceName}` );
-      if ( sourceId == settings.input.availableSources.video[ 'Axis Camera' ] ) {
-        model.html.spareElement = model.html.videoElement;
-        model.html.videoElement = model.html.imgElement;
-        model.html.videoElement.src = sourceId;
-        return;
-      } else if ( model.html.videoElement.tagName != 'video' ) {
-        model.html.videoElement = model.html.spareElement;
-      }
-      const stream = await getStream( sourceId );
-      console.log( stream );
-      model.html.videoElement.srcObject = stream;
-    })
+    .onChange( async ( sourceId ) => setInputSource( sourceId ))
     .listen();
   folderInput.add( settings.input, 'axisCameraIP' ).name( 'Axis Camera IP' ).onFinishChange( ( ip ) => {
     const oldSource = settings.input.availableSources.video[ 'Axis Camera' ]
     settings.input.availableSources.video[ 'Axis Camera' ] = `http://${ip}/mjpg/1/video.mjpg`;
     if ( settings.input.source == oldSource ) {
       try {
-        model.html.videoElement.src = settings.input.availableSources.video[ 'Axis Camera' ];
+        model.html.inputElement.src = settings.input.availableSources.video[ 'Axis Camera' ];
       } catch ( e ) {
         console.error( 'Could not connect to Axis Camera. Check IP address? Error:', e );
       }
@@ -994,25 +1054,22 @@ function generateAudioElement( pathToAudioFile ) {
  * 
  * @returns String to log into HTML DOM.
  */
-function generateLogContent() {
+function generateLogContent( model ) {
 
   const str = `
-  Version ${model.version}
+  <b>Version ${model.version}</b>
 
   ID:
   ${model.settings.global.id}
 
-  Camera dimensions:
-  [${model.html.videoElement.videoWidth}, ${model.html.videoElement.videoHeight}]
+  Camera:
+  ${model.settings.input.sourceName}
+
+  Dimensions:
+  [${model.html.inputElement.width}, ${model.html.inputElement.height}]
 
   OSC sending to:
   ${model.settings.osc.host}:${model.settings.osc.port}
-
-  Pose found:
-  ${!!model.poseResults.poseLandmarks}
-
-  Freeze frame:
-  ${!!model.settings.input.freeze}
   `;
 
   // Replaces line breaks with HTML line break formatting.
@@ -1026,7 +1083,7 @@ function generateLogContent() {
 
 }
 
-// Interaction
+// Events
 
 function onKeyPress( event ) {
 
@@ -1173,6 +1230,16 @@ function onWindowResize( ratio ) {
   model.viewer.renderer.setSize( halfDW, halfDH );
   // if ( model.viewer.camera.aspect ) 
   model.viewer.camera.aspect = halfDW / halfDH;
+
+  document.body.style.fontSize = Math.max( ( ( window.innerWidth / 800 ) ).toFixed( 2 ), 0.7 ) + 'em';
+
+}
+
+function onVideoLoaded() {
+
+  model.aspectRatio = getAspectRatio( model.html.inputElement );
+  onWindowResize( model.aspectRatio );
+  model.videoLoaded = true;
 
 }
 

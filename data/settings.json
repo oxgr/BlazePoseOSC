@@ -7,7 +7,7 @@
       "guiWidth": 380
     },
     "input": {
-      "source": "",
+      "source": "http://192.168.0.90/mjpg/1/video.mjpg",
       "axisCameraIP": "192.168.0.90",
       "mirror": true,
       "rotate": 0,
@@ -18,7 +18,8 @@
           "Axis Camera": "http://192.168.0.90/mjpg/1/video.mjpg"
         },
         "audio": {}
-      }
+      },
+      "sourceName": "Axis Camera"
     },
     "pose": {
       "options": {
