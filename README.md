@@ -6,7 +6,7 @@ Send realtime human pose estimation data to your apps! An adapted version of Lin
 - Forked from [PoseOSC](https://github.com/LingDongHuang/PoseOSC), 
 - Originally inspired by [FaceOSC](https://github.com/kylemcdonald/ofxFaceTracker/releases)
 
-![](screenshots/screen001.png)
+
 Screenshot with [OSC Data Monitor](https://www.kasperkamperman.com/blog/processing-code/osc-datamonitor/) in the background, the Processing demo can be found in `/demos` folder.
 
 
